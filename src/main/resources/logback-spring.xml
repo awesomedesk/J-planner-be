@@ -49,7 +49,7 @@
   <!-- spring profile별 로그 설정 -->
   <!--  local 환경  -->
   <springProfile name="local">
-    <root level="info">
+    <root level="debug">
       <!--     참조할 appender - STDOUT -->
       <appender-ref ref="STDOUT" />
     </root>
