@@ -216,8 +216,9 @@ gradle-app.setting
 # Java heap dump
 *.hprof
 
+# End of https://www.toptal.com/developers/gitignore/api/macos,intellij,java,gradle,git
+
+
 ### etc ###
 logs
-
-
-# End of https://www.toptal.com/developers/gitignore/api/macos,intellij,java,gradle,git
+.run
