@@ -1,0 +1,17 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  config:
+    import:
+      - classpath:/profile/application-local.yml
+      - classpath:/profile/application-tst.yml
+      - classpath:/profile/application-prd.yml
+  profiles:
+    active: local
