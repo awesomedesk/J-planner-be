@@ -22,7 +22,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @MappedSuperclass
 public class BaseEntity {
 
-    @Column(name = "is_deleted")
+    @Column(name = "is_deleted", length = 1)
     @Convert(converter = BooleanToStringConverter.class)
     private boolean isDeleted;
 

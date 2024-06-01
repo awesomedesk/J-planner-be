@@ -24,6 +24,7 @@ public class Calendar extends BaseEntity {
     private String information;
     private String location;
 
+    @Column(length = 1)
     @Convert(converter = BooleanToStringConverter.class)
     private boolean isAllDay;
 
