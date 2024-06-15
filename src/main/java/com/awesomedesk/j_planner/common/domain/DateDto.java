@@ -3,18 +3,20 @@ package com.awesomedesk.j_planner.common.domain;
 import jakarta.persistence.Embeddable;
 import java.time.LocalDateTime;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter @Setter
+@NoArgsConstructor
 @Embeddable
 public class DateDto {
 
-     private LocalDateTime startDateTime;
-     private LocalDateTime endDateTime;
+    private LocalDateTime startDateTime;
+    private LocalDateTime endDateTime;
 
-     public DateDto(LocalDateTime startDateTime, LocalDateTime endDateTime) {
-          this.startDateTime = startDateTime;
-          this.endDateTime = endDateTime;
-     }
+    public DateDto(LocalDateTime startDateTime, LocalDateTime endDateTime) {
+        this.startDateTime = startDateTime;
+        this.endDateTime = endDateTime;
+    }
 
 }
