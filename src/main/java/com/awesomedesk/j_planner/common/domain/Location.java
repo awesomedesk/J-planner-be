@@ -14,12 +14,10 @@ public class Location {
 
     @Column(name = "LOCATION_NAME")
     private String name;
-    @Column(precision = 10, scale = 6)
-    private float latitude;
-    @Column(precision = 10, scale = 6)
-    private float longitude;
+    private double latitude;
+    private double longitude;
 
-    public Location(String name, float latitude, float longitude) {
+    public Location(String name, double latitude, double longitude) {
         this.name = name;
         this.latitude = latitude;
         this.longitude = longitude;
