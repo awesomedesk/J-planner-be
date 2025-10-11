@@ -3,7 +3,6 @@ package com.awesomedesk.j_planner.v1.calendar.domain;
 import com.awesomedesk.j_planner.common.converter.attribute.BooleanToStringConverter;
 import com.awesomedesk.j_planner.common.domain.BaseEntity;
 import com.awesomedesk.j_planner.common.domain.DateDto;
-import com.awesomedesk.j_planner.common.domain.Location;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Embedded;
@@ -28,13 +27,11 @@ public class Calendar extends BaseEntity {
 
     @Column(length = 1)
     @Convert(converter = BooleanToStringConverter.class)
-    private boolean isAllDay;
+    private boolean allDay;
 
     @Embedded
     private DateDto dateDto;
 
-    private String information;
+    private String color;
 
-    @Embedded
-    private Location location;
 }
