@@ -6,8 +6,9 @@ import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 
-@Getter @Setter
+@Getter @Setter @ToString
 @NoArgsConstructor
 @Embeddable
 public class DateDto {

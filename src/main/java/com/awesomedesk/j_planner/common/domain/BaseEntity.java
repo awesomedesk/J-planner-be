@@ -30,9 +30,9 @@ public class BaseEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @Column(name = "is_deleted", length = 1)
+    @Column(name = "deleted", length = 1)
     @Convert(converter = BooleanToStringConverter.class)
-    private boolean isDeleted;
+    private boolean deleted;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
