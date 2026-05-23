@@ -1,6 +1,8 @@
 package com.awesomedesk.j_planner.v1.calendar.mapper;
 
 import com.awesomedesk.j_planner.v1.calendar.domain.Calendar;
+import com.awesomedesk.j_planner.v1.calendar.domain.CalendarDetail;
+import com.awesomedesk.j_planner.v1.calendar.dto.CalendarDetailDto;
 import com.awesomedesk.j_planner.v1.calendar.dto.CalendarInfoDto;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -15,4 +17,6 @@ public interface CalendarMapper {
     CalendarInfoDto toInfoDto(Calendar calendar);
 
     List<CalendarInfoDto> toInfoDtoList(List<Calendar> calendars);
+
+    CalendarDetailDto toDetailDto(CalendarDetail detail);
 }
