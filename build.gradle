@@ -16,16 +16,20 @@ repositories {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter")
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    // point
+    implementation 'org.hibernate.orm:hibernate-spatial'
 
     // log
     implementation 'org.slf4j:slf4j-api'
     testImplementation 'org.slf4j:slf4j-api'
     implementation 'ch.qos.logback:logback-classic'
 
+    // DB
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     // lombok
