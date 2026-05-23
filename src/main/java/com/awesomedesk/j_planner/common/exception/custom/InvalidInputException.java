@@ -1,6 +1,6 @@
-package com.awesomedesk.j_planner.common.response.exception.custom;
+package com.awesomedesk.j_planner.common.exception.custom;
 
-import com.awesomedesk.j_planner.common.response.exception.AwesomeException;
+import com.awesomedesk.j_planner.common.exception.AwesomeException;
 import org.springframework.http.HttpStatus;
 
 public class InvalidInputException extends AwesomeException {

@@ -1,4 +1,4 @@
-package com.awesomedesk.j_planner.common.response.exception;
+package com.awesomedesk.j_planner.common.exception;
 
 import lombok.Getter;
 import lombok.Setter;
