@@ -4,7 +4,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -103,14 +102,16 @@ class CalendarControllerTest {
         CalendarCreateReqDto reqDto =
             CalendarCreateReqDto.builder()
                 .title("testTitle")
-                .describe("testDescribe")
-                .location("testLocation")
+                .color("#FF5733")
                 .allDay(false)
                 .startDatetime(LocalDateTime.now())
                 .endDatetime(LocalDateTime.now().plusHours(3))
                 .build();
 
-        mvc.perform(post("/j-planner/v1/calendar/0")
+        given(calendarService.postCalendar(any(CalendarCreateReqDto.class)))
+            .willReturn(1L);
+
+        mvc.perform(post("/j-planner/v1/calendar")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(reqDto)))
             .andExpect(status().isCreated());

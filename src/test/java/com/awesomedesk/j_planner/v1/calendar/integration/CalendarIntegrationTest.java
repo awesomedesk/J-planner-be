@@ -3,6 +3,7 @@ package com.awesomedesk.j_planner.v1.calendar.integration;
 import com.awesomedesk.j_planner.common.domain.DateDto;
 import com.awesomedesk.j_planner.v1.calendar.domain.Calendar;
 import com.awesomedesk.j_planner.v1.calendar.dto.CalendarCreateReqDto;
+import com.awesomedesk.j_planner.v1.calendar.dto.CalendarDetailDto;
 import com.awesomedesk.j_planner.v1.calendar.repository.CalendarRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -101,6 +102,43 @@ class CalendarIntegrationTest {
             .andExpect(jsonPath("$.data.length()").value(0));
     }
 
+    @Test
+    @DisplayName("E2E: 일정 생성(POST) - detail 포함")
+    void postCalendar_E2E_WithDetail() throws Exception {
+        // Given
+        CalendarCreateReqDto reqDto = CalendarCreateReqDto.builder()
+            .title("테스트 데이터")
+            .color("#FF5733")
+            .allDay(false)
+            .startDatetime(LocalDateTime.of(2026, 5, 10, 10, 0))
+            .endDatetime(LocalDateTime.of(2026, 5, 10, 12, 0))
+            .detail(CalendarDetailDto.builder()
+                .description("테스트데이터 - 프로젝트 진행 상황 공유")
+                .textLocation("회의실 A")
+                .latitude(37.5665)
+                .longitude(126.9780)
+                .build())
+            .build();
+
+        // When & Then
+        mvc.perform(post("/j-planner/v1/calendar")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reqDto)))
+            .andDo(print())
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data").isNumber());
+
+        Calendar saved = calendarRepository.findAll().stream()
+            .filter(c -> "테스트 데이터".equals(c.getTitle()))
+            .findFirst()
+            .orElseThrow();
+
+        assertThat(saved.getDetail()).isNotNull();
+        assertThat(saved.getDetail().getTextLocation()).isEqualTo("회의실 A");
+        assertThat(saved.getDetail().getLatitude()).isEqualTo(37.5665);
+        assertThat(saved.getDetail().getLongitude()).isEqualTo(126.9780);
+    }
+
     // TODO: CalendarServiceImpl의 postCalendar 메서드 구현 완료 후 활성화
     // @Test
     @DisplayName("E2E: 일정 저장 후 조회 - 전체 플로우 테스트")
@@ -108,15 +146,14 @@ class CalendarIntegrationTest {
         // Given - 일정 생성
         CalendarCreateReqDto reqDto = CalendarCreateReqDto.builder()
             .title("새로운 미팅")
-            .describe("클라이언트 미팅")
-            .location("강남역")
+            .color("#FF5733")
             .allDay(false)
             .startDatetime(LocalDateTime.of(2025, 1, 25, 16, 0))
             .endDatetime(LocalDateTime.of(2025, 1, 25, 17, 0))
             .build();
 
         // When - 일정 저장
-        mvc.perform(post("/j-planner/v1/calendar/0")
+        mvc.perform(post("/j-planner/v1/calendar")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(reqDto)))
             .andDo(print())
@@ -196,8 +233,7 @@ class CalendarIntegrationTest {
         // Given
         CalendarCreateReqDto reqDto = CalendarCreateReqDto.builder()
             .title("DB 검증 테스트")
-            .describe("테스트 설명")
-            .location("테스트 장소")
+            .color("#28A745")
             .allDay(true)
             .startDatetime(LocalDateTime.of(2025, 1, 30, 0, 0))
             .endDatetime(LocalDateTime.of(2025, 1, 30, 23, 59))
@@ -206,7 +242,7 @@ class CalendarIntegrationTest {
         int beforeCount = calendarRepository.findAll().size();
 
         // When - API로 저장
-        mvc.perform(post("/j-planner/v1/calendar/0")
+        mvc.perform(post("/j-planner/v1/calendar")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(reqDto)))
             .andDo(print())

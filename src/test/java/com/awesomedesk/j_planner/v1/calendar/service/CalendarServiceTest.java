@@ -14,8 +14,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.Arrays;
 import java.util.List;
 
@@ -110,7 +114,10 @@ class CalendarServiceTest {
         assertThat(result.get(0).getTitle()).isEqualTo("팀 회의");
         assertThat(result.get(1).getTitle()).isEqualTo("프로젝트 마감");
 
-        verify(calendarRepository, times(1)).findAllByDateDto(dateDto);
+        ArgumentCaptor<DateDto> captor = ArgumentCaptor.forClass(DateDto.class);
+        verify(calendarRepository, times(1)).findAllByDateDto(captor.capture());
+        assertThat(captor.getValue().getStartDateTime()).isEqualTo(dateDto.getStartDateTime());
+        assertThat(captor.getValue().getEndDateTime()).isEqualTo(dateDto.getEndDateTime());
         verify(calendarMapper, times(1)).toInfoDtoList(mockCalendars);
     }
 
@@ -135,8 +142,37 @@ class CalendarServiceTest {
         assertThat(result).isNotNull();
         assertThat(result).isEmpty();
 
-        verify(calendarRepository, times(1)).findAllByDateDto(dateDto);
+        ArgumentCaptor<DateDto> captor = ArgumentCaptor.forClass(DateDto.class);
+        verify(calendarRepository, times(1)).findAllByDateDto(captor.capture());
+        assertThat(captor.getValue().getStartDateTime()).isEqualTo(dateDto.getStartDateTime());
+        assertThat(captor.getValue().getEndDateTime()).isEqualTo(dateDto.getEndDateTime());
         verify(calendarMapper, times(1)).toInfoDtoList(anyList());
+    }
+
+    @Test
+    @DisplayName("일정 목록 조회 - 입력 없으면 이번 달 범위로 조회")
+    void getCalendarList_DefaultToCurrentMonth() {
+        // Given
+        given(calendarRepository.findAllByDateDto(any(DateDto.class)))
+            .willReturn(Arrays.asList());
+        given(calendarMapper.toInfoDtoList(anyList()))
+            .willReturn(Arrays.asList());
+
+        // When
+        List<CalendarInfoDto> result = calendarService.getCalendarList(new DateDto());
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result).isEmpty();
+
+        ArgumentCaptor<DateDto> captor = ArgumentCaptor.forClass(DateDto.class);
+        verify(calendarRepository, times(1)).findAllByDateDto(captor.capture());
+
+        LocalDate today = LocalDate.now();
+        LocalDate firstDay = today.withDayOfMonth(1);
+        LocalDate lastDay = today.with(TemporalAdjusters.lastDayOfMonth());
+        assertThat(captor.getValue().getStartDateTime()).isEqualTo(firstDay.atStartOfDay());
+        assertThat(captor.getValue().getEndDateTime()).isEqualTo(LocalDateTime.of(lastDay, LocalTime.of(23, 59, 59)));
     }
 
     @Test
@@ -145,8 +181,7 @@ class CalendarServiceTest {
         // Given
         CalendarCreateReqDto reqDto = CalendarCreateReqDto.builder()
             .title("새 일정")
-            .describe("새 일정 설명")
-            .location("서울시")
+            .color("#E74C3C")
             .allDay(false)
             .startDatetime(LocalDateTime.of(2025, 1, 25, 16, 0))
             .endDatetime(LocalDateTime.of(2025, 1, 25, 17, 0))
