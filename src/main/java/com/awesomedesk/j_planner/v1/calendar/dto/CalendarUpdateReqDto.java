@@ -14,13 +14,13 @@ import lombok.ToString;
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
-public class CalendarInfoDto {
+public class CalendarUpdateReqDto {
 
-    private long id;
     private String title;
+    private String color;
     private boolean allDay;
     private LocalDateTime startDatetime;
     private LocalDateTime endDatetime;
-    private String color;
+
     private CalendarDetailDto detail;
 }

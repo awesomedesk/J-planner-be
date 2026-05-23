@@ -1,6 +1,5 @@
 package com.awesomedesk.j_planner.v1.calendar.dto;
 
-import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,13 +13,10 @@ import lombok.ToString;
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
-public class CalendarInfoDto {
+public class CalendarDetailDto {
 
-    private long id;
-    private String title;
-    private boolean allDay;
-    private LocalDateTime startDatetime;
-    private LocalDateTime endDatetime;
-    private String color;
-    private CalendarDetailDto detail;
+    private String description;
+    private String textLocation;
+    private Double latitude;
+    private Double longitude;
 }

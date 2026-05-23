@@ -1,31 +1,26 @@
 package com.awesomedesk.j_planner.v1.calendar.dto;
 
 import java.time.LocalDateTime;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 
 @Builder
-@Getter @Setter
+@Getter
+@Setter
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
 public class CalendarCreateReqDto {
 
     private String title;
-    private String describe;
-    private String location;
-
+    private String color;
     private boolean allDay;
     private LocalDateTime startDatetime;
     private LocalDateTime endDatetime;
 
-    public CalendarCreateReqDto() {}
-
-    public CalendarCreateReqDto(String title, String describe, String location, boolean allDay,
-        LocalDateTime startDatetime, LocalDateTime endDatetime) {
-        this.title = title;
-        this.describe = describe;
-        this.location = location;
-        this.allDay = allDay;
-        this.startDatetime = startDatetime;
-        this.endDatetime = endDatetime;
-    }
+    private CalendarDetailDto detail;
 }
