@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 J-planner is a Spring Boot application designed for MBTI 'J' personality types, providing calendar, planner, to-do, and diary functionality. The project uses Java 21 with Spring Boot 3.2.4, JPA, MySQL, and includes AOP logging.
 
+## Product Planning
+
+- Product planning docs (requirements, decision log, open questions, implementation status) live in a **separate repository**, not here.
+  - Local: `../j-planner-product`
+  - GitHub: https://github.com/awesomedesk/j-planner-product (private)
+- Before implementing a feature, check `../j-planner-product/02-requirements.md` (requirement IDs, status) and `03-decisions.md` (confirmed decisions).
+- Do not add planning documents to this repository.
+
 ## Build Commands
 
 - **Build**: `./gradlew build`
