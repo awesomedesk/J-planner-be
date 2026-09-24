@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-J-planner is a Spring Boot application designed for MBTI 'J' personality types, providing calendar, planner, to-do, and diary functionality. The project uses Java 21 with Spring Boot 3.2.4, JPA, MySQL, and includes AOP logging.
+J-planner is a Spring Boot application designed for MBTI 'J' personality types, providing calendar, planner, to-do, and diary functionality. The project uses **Java 25, Spring Boot 4.1, Gradle 9.7** (Hibernate 7, Jackson 3 — `tools.jackson.*` packages), JPA, MySQL 8.4, and AOP logging.
 
 ## Product Planning
 
@@ -27,19 +27,17 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 
 ### Package Structure
 - `com.awesomedesk.j_planner` - Root package
-  - `common/` - Shared components and utilities
-    - `response/` - Standardized API response handling (`AwesomeResponse`, exceptions)
-    - `domain/` - Common domain objects (`BaseEntity`, `DateDto`, `Location`)
-    - `controller/` - Global exception handler
+  - `api/v1/<feature>/` - One folder per API resource (Controller, Service, Repository, entity, `…Request`/`…Response` records). Implemented: `health`, `category`, `schedule`
+  - `common/`
+    - `api/` - `JsonMergePatch` (PATCH per RFC 7396), `RequestValidator`, `DateRanges` (62-day query limit), `Positions` (move/reorder), `PositionRequest`
+    - `error/` - Error handling: `ErrorCode`, `ApiException`, `GlobalExceptionHandler` (RFC 9457 Problem Details)
+    - `domain/` - `BaseEntity` (created/updated/deleted columns, soft delete)
     - `aop/logger/` - AOP-based logging
-    - `converter/attribute/` - JPA attribute converters
-  - `v1/` - API version 1
-    - `calendar/` - Calendar feature (controller, service, repository, domain, dto)
-    - `apiTest/` - Testing endpoints
-  - `scheduler/` - Scheduled tasks
+    - `converter/attribute/` - JPA attribute converters (Y/N ↔ boolean)
+  - `config/` - CORS (`app.cors.allowed-origins`), `Cache-Control: no-store`, `Clock` (Asia/Seoul), JPA auditing
 
 ### Key Architectural Patterns
-- **Standardized Responses**: All API endpoints use `AwesomeResponse<T>` wrapper for consistent response format
+- **Pure REST responses (D-031)**: Success returns the HTTP status + resource JSON directly (no wrapper). Errors are `application/problem+json` (RFC 9457) with extra `code` and `errors` properties. Throw `ApiException(ErrorCode, detail)` from services; `GlobalExceptionHandler` converts it. API spec: `../j-planner-product/08-api-design.md`, `08-openapi.yaml`
 - **Layered Architecture**: Controller → Service → Repository pattern with clear separation
 - **AOP Logging**: `LoggerAspect` provides cross-cutting logging functionality
 - **JPA Auditing**: Enabled with `@EnableJpaAuditing` for automatic timestamp tracking
@@ -53,9 +51,9 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 - **Context Path**: `/`
 
 ### Testing
-- Uses JUnit 5 platform
-- Test files located in `src/test/java/`
-- Includes controller and exception handler tests
+- API tests extend `support/IntegrationTest`: real MySQL test DB `jp_test` (created automatically), tables from `sql/schema.sql`, data reset before each test by `src/test/resources/sql/reset.sql`
+- Needs a local MySQL on 127.0.0.1:3306. Override with `JP_TEST_DB_URL`, `JP_TEST_DB_USERNAME`, `JP_TEST_DB_PASSWORD`
+- Error shape / CORS tests use `@WebMvcTest` (`org.springframework.boot.webmvc.test.autoconfigure`)
 
 ### Dependencies
 - Spring Boot Starter (Web, Data JPA, AOP)
@@ -68,6 +66,6 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 
 - Application entry point: `J_plannerApiApplication.java`
 - All entities extend `BaseEntity` for common audit fields
-- Controllers use `@Slf4j` for logging and follow REST conventions
-- Request/Response DTOs follow naming pattern: `*ReqDto`, `*ResDto`
-- Service interfaces and implementations are separated
+- Controllers follow REST conventions (08-api-design.md)
+- Request/Response DTOs are records named `*Request` / `*Response`
+- Services are concrete classes (no interface/impl split)
