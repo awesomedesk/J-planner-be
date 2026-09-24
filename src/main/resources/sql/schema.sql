@@ -38,6 +38,7 @@ CREATE TABLE categories (
     `color`             VARCHAR(7)      NOT NULL                COMMENT '색 (#RRGGBB)',
     `is_default`        VARCHAR(1)      NOT NULL DEFAULT 'N'    COMMENT '기본 카테고리(미지정) 여부'
                                         CHECK (`is_default` IN ('N', 'Y')),
+    `sort_order`        INT             NOT NULL DEFAULT 0      COMMENT '표시 순서 (미지정은 항상 맨 위, D-029)',
     `created_at`        DATETIME        NOT NULL DEFAULT NOW()  COMMENT '생성일시',
     `updated_at`        DATETIME        NOT NULL DEFAULT NOW()  COMMENT '수정일시',
     `deleted`           VARCHAR(1)      NOT NULL DEFAULT 'N'    COMMENT '삭제여부'
@@ -47,8 +48,13 @@ CREATE TABLE categories (
     `default_guard`     TINYINT         GENERATED ALWAYS AS
                                         (IF(`is_default` = 'Y' AND `deleted` = 'N', 1, NULL)) STORED
                                         COMMENT '기본 카테고리 중복 방지용 (JPA 매핑 안 함)',
+    -- 삭제 안 된 카테고리끼리 이름 중복 금지 (D-029)
+    `active_name`       VARCHAR(50)     GENERATED ALWAYS AS
+                                        (IF(`deleted` = 'N', `name`, NULL)) STORED
+                                        COMMENT '이름 중복 방지용 (JPA 매핑 안 함)',
     PRIMARY KEY (category_id),
     UNIQUE KEY uk_categories_default_guard (default_guard),
+    UNIQUE KEY uk_categories_active_name (active_name),
     CHECK (`color` REGEXP '^#[0-9A-Fa-f]{6}$')
 ) COMMENT '카테고리 (일정·Todo 공용)';
 
@@ -63,7 +69,7 @@ CREATE TABLE calendars (
                                         CHECK (`all_day` IN ('N', 'Y')),
     `start_date_time`   DATETIME        NOT NULL                COMMENT '시작일시',
     `end_date_time`     DATETIME        NOT NULL                COMMENT '종료일시',
-    `color`             VARCHAR(8)      NULL                    COMMENT '일정 색 (NULL = 카테고리 색의 연한 톤, D-019)',
+    `color`             VARCHAR(8)      NULL                    COMMENT '일정 색 (NULL = 테마의 Theme2 색, D-030)',
     `created_at`        DATETIME        NULL     DEFAULT NOW()  COMMENT '생성일시',
     `updated_at`        DATETIME        NULL     DEFAULT NOW()  COMMENT '수정일시',
     `deleted`           VARCHAR(1)      NOT NULL DEFAULT 'N'    COMMENT '삭제여부'
@@ -101,11 +107,11 @@ CREATE TABLE todos (
     `end_date`          DATE            NOT NULL                COMMENT '마감일 (DAY는 그날, WEEK는 주 마지막날, MONTH는 말일)',
     `start_time`        TIME            NULL                    COMMENT '시간표 시작 시각 (NULL = 시간 지정 안 함)',
     `duration_minutes`  SMALLINT        NULL                    COMMENT '시간표 길이(분). 종료 = 시작 + 길이',
-    `color`             VARCHAR(7)      NULL                    COMMENT 'Todo 색 (NULL = 카테고리 색 기준, D-019)',
+    `color`             VARCHAR(7)      NULL                    COMMENT 'Todo 색 (NULL = 테마의 Theme2 색, D-030)',
     `completed`         VARCHAR(1)      NOT NULL DEFAULT 'N'    COMMENT '완료여부 (기간 Todo도 한 번 체크 = 전체 완료, D-027)'
                                         CHECK (`completed` IN ('N', 'Y')),
     `completed_at`      DATETIME        NULL                    COMMENT '완료일시 (DIARY-04: 그날 완료한 Todo)',
-    `sort_order`        INT             NOT NULL DEFAULT 0      COMMENT '박스 표시 순서 (TODO-09)',
+    `sort_order`        INT             NOT NULL DEFAULT 0      COMMENT '박스 표시 순서 (TODO-09). 새 Todo = 최댓값 + 1 (맨 아래, D-029)',
     `created_at`        DATETIME        NOT NULL DEFAULT NOW()  COMMENT '생성일시',
     `updated_at`        DATETIME        NOT NULL DEFAULT NOW()  COMMENT '수정일시',
     `deleted`           VARCHAR(1)      NOT NULL DEFAULT 'N'    COMMENT '삭제여부'
@@ -144,6 +150,7 @@ CREATE TABLE ddays (
                                         CHECK (`show_daily` IN ('N', 'Y')),
     `show_yearly`       VARCHAR(1)      NOT NULL DEFAULT 'N'    COMMENT '표시옵션: 매년 n주년 (COUNTUP만)'
                                         CHECK (`show_yearly` IN ('N', 'Y')),
+    `sort_order`        INT             NOT NULL DEFAULT 0      COMMENT '목록 표시 순서 (사용자 순서, 새 D-Day = 최댓값 + 1, D-029)',
     `created_at`        DATETIME        NOT NULL DEFAULT NOW()  COMMENT '생성일시',
     `updated_at`        DATETIME        NOT NULL DEFAULT NOW()  COMMENT '수정일시',
     `deleted`           VARCHAR(1)      NOT NULL DEFAULT 'N'    COMMENT '삭제여부'
@@ -188,7 +195,8 @@ CREATE TABLE memos (
     `deleted`           VARCHAR(1)      NOT NULL DEFAULT 'N'    COMMENT '삭제여부'
                                         CHECK (`deleted` IN ('N', 'Y')),
     `deleted_at`        DATETIME        NULL                    COMMENT '삭제일시',
-    PRIMARY KEY (memo_id)
+    PRIMARY KEY (memo_id),
+    INDEX idx_memos_updated_at (deleted, updated_at)
 ) COMMENT '메모';
 
 -- ============================================================
@@ -199,10 +207,8 @@ CREATE TABLE user_settings (
     `setting_id`            BIGINT      NOT NULL                COMMENT '설정번호 (MVP는 1 고정. 로그인 도입 시 user_id로 대체)',
     `week_start_day`        VARCHAR(3)  NOT NULL DEFAULT 'SUN'  COMMENT '주 시작 요일'
                                         CHECK (`week_start_day` IN ('SUN', 'MON')),
-    `start_view`            VARCHAR(10) NOT NULL DEFAULT 'MONTH' COMMENT '처음 화면: MONTH / WEEK / DAY / LAST(마지막에 본 화면)'
+    `start_view`            VARCHAR(10) NOT NULL DEFAULT 'MONTH' COMMENT '처음 화면: MONTH / WEEK / DAY / LAST(마지막에 본 화면 = 브라우저 localStorage에 저장, D-029)'
                                         CHECK (`start_view` IN ('MONTH', 'WEEK', 'DAY', 'LAST')),
-    `last_view`             VARCHAR(10) NULL                    COMMENT '마지막에 본 화면 (start_view = LAST일 때 사용)'
-                                        CHECK (`last_view` IN ('MONTH', 'WEEK', 'THREE_DAY', 'DAY', 'LIST')),
     `time_format`           VARCHAR(3)  NOT NULL DEFAULT '24H'  COMMENT '시간 표시'
                                         CHECK (`time_format` IN ('24H', '12H')),
     `timetable_start_hour`  TINYINT     NOT NULL DEFAULT 6      COMMENT '시간표 시작 시 (0~23)',
@@ -239,8 +245,8 @@ CREATE TABLE sidebar_items (
 -- ============================================================
 -- 기본 데이터 (필수)
 -- ============================================================
-INSERT INTO categories (name, color, is_default)
-VALUES ('미지정', '#6B6B6B', 'Y');
+INSERT INTO categories (name, color, is_default, sort_order)
+VALUES ('미지정', '#6B6B6B', 'Y', 0);
 
 INSERT INTO user_settings (setting_id) VALUES (1);
 
