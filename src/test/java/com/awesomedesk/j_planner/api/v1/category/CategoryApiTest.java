@@ -70,6 +70,35 @@ class CategoryApiTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("D-035: 앞뒤 공백을 지우고, 대소문자·악센트를 구분하지 않고 같은 이름으로 본다")
+    void duplicateRulesD035() throws Exception {
+        create("Study", "#2F62A8");
+        create("cafe", "#2F62A8");
+        for (String same : new String[] {"study", "STUDY", "  Study  ", "café", "CAFÉ"}) {
+            mvc.perform(post("/api/v1/categories").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"name\":\"" + same + "\",\"color\":\"#000000\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CATEGORY_NAME_DUPLICATED"));
+        }
+    }
+
+    @Test
+    @DisplayName("D-035: 이름 변경도 같은 기준. 자기 이름의 대소문자만 바꾸는 것은 된다")
+    void renameRulesD035() throws Exception {
+        long study = create("Study", "#2F62A8");
+        long work = create("Work", "#A6323F");
+        mvc.perform(patch("/api/v1/categories/" + work).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\" study \"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("CATEGORY_NAME_DUPLICATED"));
+        mvc.perform(patch("/api/v1/categories/" + study).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"STUDY\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value("STUDY"));
+        mvc.perform(patch("/api/v1/categories/" + work).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"   \"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors[0].field").value("name"));
+    }
+
+    @Test
     @DisplayName("입력값 오류 → 400 VALIDATION_FAILED + 필드별 errors")
     void createInvalid() throws Exception {
         mvc.perform(post("/api/v1/categories").contentType(MediaType.APPLICATION_JSON)

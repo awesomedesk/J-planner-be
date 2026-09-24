@@ -11,6 +11,7 @@
 --   - 감사 컬럼: created_at, updated_at, deleted, deleted_at (BaseEntity)
 --   - 삭제는 soft delete (deleted = 'Y')
 --   - user_id 없음 (D-003: MVP는 1인 사용)
+--   - 문자셋 utf8mb4, 정렬 utf8mb4_0900_ai_ci: 대소문자·악센트를 구분하지 않고 비교 (D-035 카테고리 이름 중복 기준)
 -- 사용법: DB를 먼저 만들고 그 DB에 실행한다 (모든 테이블을 지우고 새로 만든다)
 --   mysql -u jplanner -p -e "CREATE DATABASE IF NOT EXISTS jp"
 --   mysql -u jplanner -p jp < schema.sql
@@ -48,7 +49,7 @@ CREATE TABLE categories (
     `default_guard`     TINYINT         GENERATED ALWAYS AS
                                         (IF(`is_default` = 'Y' AND `deleted` = 'N', 1, NULL)) STORED
                                         COMMENT '기본 카테고리 중복 방지용 (JPA 매핑 안 함)',
-    -- 삭제 안 된 카테고리끼리 이름 중복 금지 (D-029)
+    -- 삭제 안 된 카테고리끼리 이름 중복 금지 (D-029). 대소문자·악센트 구분 없음 (D-035, 테이블 정렬 규칙)
     `active_name`       VARCHAR(50)     GENERATED ALWAYS AS
                                         (IF(`deleted` = 'N', `name`, NULL)) STORED
                                         COMMENT '이름 중복 방지용 (JPA 매핑 안 함)',
@@ -56,7 +57,7 @@ CREATE TABLE categories (
     UNIQUE KEY uk_categories_default_guard (default_guard),
     UNIQUE KEY uk_categories_active_name (active_name),
     CHECK (`color` REGEXP '^#[0-9A-Fa-f]{6}$')
-) COMMENT '카테고리 (일정·Todo 공용)';
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '카테고리 (일정·Todo 공용)';
 
 -- ============================================================
 -- 2. 일정 (SCH, 기존 테이블 + category_id)
@@ -78,7 +79,7 @@ CREATE TABLE calendars (
     PRIMARY KEY (calendar_id),
     INDEX idx_deleted_date_range (deleted, start_date_time, end_date_time),
     CONSTRAINT fk_calendars_category FOREIGN KEY (category_id) REFERENCES categories (category_id)
-) COMMENT '일정';
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '일정';
 
 CREATE TABLE calendar_details (
     `calendar_id`       BIGINT          NOT NULL                COMMENT '일정번호',
@@ -92,7 +93,7 @@ CREATE TABLE calendar_details (
                                         CHECK (`deleted` IN ('N', 'Y')),
     `deleted_at`        DATETIME        NULL                    COMMENT '삭제일시',
     PRIMARY KEY (calendar_id)
-) COMMENT '일정 상세 (calendars와 1:1)';
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '일정 상세 (calendars와 1:1)';
 
 -- ============================================================
 -- 3. Todo (TODO-01~05, 09, 10, 12~14, D-007, D-013, D-015, D-027)
@@ -126,7 +127,7 @@ CREATE TABLE todos (
     CONSTRAINT ck_todos_time_pair    CHECK ((`start_time` IS NULL) = (`duration_minutes` IS NULL)),
     CONSTRAINT ck_todos_duration     CHECK (`duration_minutes` IS NULL OR `duration_minutes` BETWEEN 1 AND 1440),
     CONSTRAINT ck_todos_completed_at CHECK ((`completed` = 'Y') = (`completed_at` IS NOT NULL))
-) COMMENT 'Todo';
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT 'Todo';
 
 -- ============================================================
 -- 4. D-Day (DDAY-01~05, D-012, D-020)
@@ -160,7 +161,7 @@ CREATE TABLE ddays (
     INDEX idx_ddays_target_date (deleted, target_date),
     CONSTRAINT ck_ddays_countdown_options CHECK (`count_type` <> 'COUNTDOWN' OR `show_yearly` = 'N'),
     CONSTRAINT ck_ddays_countup_options   CHECK (`count_type` <> 'COUNTUP' OR (`show_last_days` = 'N' AND `show_daily` = 'N'))
-) COMMENT 'D-Day';
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT 'D-Day';
 
 -- ============================================================
 -- 5. 일기 (DIARY-01~03, D-011: 날짜당 1개)
@@ -181,7 +182,7 @@ CREATE TABLE diaries (
     PRIMARY KEY (diary_id),
     UNIQUE KEY uk_diaries_active_date (active_date),
     INDEX idx_diaries_date (deleted, diary_date)
-) COMMENT '일기';
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '일기';
 
 -- ============================================================
 -- 6. 메모 (MEMO-01~03, D-011: 날짜 없음)
@@ -197,7 +198,7 @@ CREATE TABLE memos (
     `deleted_at`        DATETIME        NULL                    COMMENT '삭제일시',
     PRIMARY KEY (memo_id),
     INDEX idx_memos_updated_at (deleted, updated_at)
-) COMMENT '메모';
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '메모';
 
 -- ============================================================
 -- 7. 사용자 설정 (SET-01~05, CAL-04, THEME, SIDE-01, D-021, D-024)
@@ -228,7 +229,7 @@ CREATE TABLE user_settings (
     CONSTRAINT ck_user_settings_timetable CHECK (`timetable_start_hour` BETWEEN 0 AND 23
                                                  AND `timetable_end_hour` BETWEEN 1 AND 24
                                                  AND `timetable_start_hour` < `timetable_end_hour`)
-) COMMENT '사용자 설정';
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '사용자 설정';
 
 -- 사이드바·날짜 시트 항목 표시/순서 (SIDE-02, 03)
 CREATE TABLE sidebar_items (
@@ -240,7 +241,7 @@ CREATE TABLE sidebar_items (
     `sort_order`        TINYINT         NOT NULL                COMMENT '표시 순서 (0부터)',
     PRIMARY KEY (setting_id, item_type),
     CONSTRAINT fk_sidebar_items_setting FOREIGN KEY (setting_id) REFERENCES user_settings (setting_id)
-) COMMENT '사이드바 항목 설정';
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '사이드바 항목 설정';
 
 -- ============================================================
 -- 기본 데이터 (필수)
