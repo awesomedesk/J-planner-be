@@ -16,6 +16,7 @@
 --   mysql -u jplanner -p -e "CREATE DATABASE IF NOT EXISTS jp"
 --   mysql -u jplanner -p jp < schema.sql
 -- BE 테스트도 이 파일로 테스트 DB(jp_test) 테이블을 만든다.
+-- 로컬 DB를 통째로 새로 만들고 테스트 데이터까지 넣으려면 local-reset.sql을 쓴다 (sample-data.sql 포함).
 -- ============================================================
 
 SET FOREIGN_KEY_CHECKS = 0;

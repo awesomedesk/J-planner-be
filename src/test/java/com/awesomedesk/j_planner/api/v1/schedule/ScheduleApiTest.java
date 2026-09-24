@@ -87,6 +87,20 @@ class ScheduleApiTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("일시는 시간대 변환 없이 그대로 저장·조회된다 (DB 값 = API 값, JVM 시간대와 무관)")
+    void dateTimeStoredAsIs() throws Exception {
+        jdbc.update("INSERT INTO calendars (calendar_id, category_id, title, start_date_time, end_date_time) VALUES (900, ?, 'SQL로 넣음', '2026-09-24 10:00:00', '2026-09-24 11:00:00')", defaultCategoryId());
+        jdbc.update("INSERT INTO calendar_details (calendar_id) VALUES (900)");
+        mvc.perform(get("/api/v1/schedules/900"))
+            .andExpect(jsonPath("$.start").value("2026-09-24T10:00:00"))
+            .andExpect(jsonPath("$.end").value("2026-09-24T11:00:00"));
+
+        long id = create("API로 넣음", "2026-09-24T14:00:00", "2026-09-24T15:30:00");
+        assertThat(jdbc.queryForObject("SELECT DATE_FORMAT(start_date_time, '%Y-%m-%d %H:%i:%s') FROM calendars WHERE calendar_id = ?", String.class, id))
+            .isEqualTo("2026-09-24 14:00:00");
+    }
+
+    @Test
     @DisplayName("필수값만 → 카테고리는 미지정, 색·상세는 null")
     void createMinimal() throws Exception {
         long id = create("헬스장", "2026-09-24T18:00:00", "2026-09-24T19:00:00");
