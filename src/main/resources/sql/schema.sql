@@ -11,11 +11,11 @@
 --   - 감사 컬럼: created_at, updated_at, deleted, deleted_at (BaseEntity)
 --   - 삭제는 soft delete (deleted = 'Y')
 --   - user_id 없음 (D-003: MVP는 1인 사용)
--- 기존 DB를 올릴 때는 migration-20260924-mvp.sql 을 사용한다.
+-- 사용법: DB를 먼저 만들고 그 DB에 실행한다 (모든 테이블을 지우고 새로 만든다)
+--   mysql -u jplanner -p -e "CREATE DATABASE IF NOT EXISTS jp"
+--   mysql -u jplanner -p jp < schema.sql
+-- BE 테스트도 이 파일로 테스트 DB(jp_test) 테이블을 만든다.
 -- ============================================================
-
-CREATE DATABASE IF NOT EXISTS jp;
-USE jp;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `sidebar_items`;

@@ -1,9 +1,9 @@
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/jp_test?useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&serverTimezone=Asia/Seoul
-    username: jplanner
-    password: jPlanner!0102
+    url: ${JP_TEST_DB_URL:jdbc:mysql://127.0.0.1:3306/jp_test?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&serverTimezone=Asia/Seoul}
+    username: ${JP_TEST_DB_USERNAME:jplanner}
+    password: ${JP_TEST_DB_PASSWORD:jPlanner!0102}
 
   jpa:
     show-sql: true
@@ -12,8 +12,17 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: none
 
+  # 테스트 DB 테이블은 schema.sql로 만든다 (CHECK·생성 컬럼·UNIQUE 규칙까지 같게). 데이터는 테스트마다 sql/reset.sql로 비운다
   sql:
     init:
-      mode: never
+      mode: always
+      schema-locations: classpath:sql/schema.sql
+      continue-on-error: false
+  jackson:
+    time-zone: Asia/Seoul
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000
