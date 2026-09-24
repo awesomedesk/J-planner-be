@@ -63,6 +63,30 @@ class ScheduleApiTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("D-037: 장소는 이름만 저장할 수 있다. 이름을 바꾸며 좌표를 null로 보내면 좌표가 지워진다")
+    void locationNameOnly() throws Exception {
+        String body = postSchedule("{\"title\":\"a\",\"allDay\":false,\"start\":\"2026-09-24T10:00:00\",\"end\":\"2026-09-24T11:00:00\","
+                + "\"location\":{\"name\":\"회의실 A\"}}")
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.location.name").value("회의실 A"))
+            .andExpect(jsonPath("$.location.latitude").value(nullValue()))
+            .andExpect(jsonPath("$.location.longitude").value(nullValue()))
+            .andReturn().getResponse().getContentAsString();
+        long id = Long.parseLong(body.replaceAll("^\\{\"id\":(\\d+).*", "$1"));
+
+        mvc.perform(patch("/api/v1/schedules/" + id).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"location\":{\"name\":\"강남역\",\"latitude\":37.4979,\"longitude\":127.0276}}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.location.latitude").value(37.4979));
+        mvc.perform(patch("/api/v1/schedules/" + id).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"location\":{\"name\":\"집\",\"latitude\":null,\"longitude\":null}}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.location.name").value("집"))
+            .andExpect(jsonPath("$.location.latitude").value(nullValue()))
+            .andExpect(jsonPath("$.location.longitude").value(nullValue()));
+    }
+
+    @Test
     @DisplayName("필수값만 → 카테고리는 미지정, 색·상세는 null")
     void createMinimal() throws Exception {
         long id = create("헬스장", "2026-09-24T18:00:00", "2026-09-24T19:00:00");

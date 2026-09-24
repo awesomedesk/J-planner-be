@@ -15,7 +15,8 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * 카테고리 (US-04, 08-api-design.md 3절)
- * - 미지정: 항상 맨 위, 색만 변경 가능 (이름 변경·삭제·이동 불가) — D-014, D-029
+ * - 미지정: 항상 맨 위, 이름·색 변경·삭제·이동 모두 불가 — D-014, D-029, D-037
+ * - 색은 고르지 않으면 null (D-037)
  * - 이름 중복 금지, 새 카테고리는 맨 뒤 — D-029, D-032
  * - 연결 개수: 삭제된 것 제외, 완료한 Todo 포함 — D-032
  */
@@ -60,8 +61,9 @@ public class CategoryService {
             jsonMergePatch.apply(new CategoryRequest(category.getName(), category.getColor()), patch, CategoryRequest.class));
 
         boolean nameChanged = !merged.name().equals(category.getName());
-        if (nameChanged && category.isDefault()) {
-            throw new ApiException(ErrorCode.DEFAULT_CATEGORY_LOCKED, "'미지정' 카테고리는 이름을 바꿀 수 없습니다.");
+        boolean colorChanged = !java.util.Objects.equals(merged.color(), category.getColor());
+        if (category.isDefault() && (nameChanged || colorChanged)) {
+            throw new ApiException(ErrorCode.DEFAULT_CATEGORY_LOCKED, "'미지정' 카테고리는 이름과 색을 바꿀 수 없습니다.");
         }
         if (nameChanged && categoryRepository.existsByNameAndIdNot(merged.name(), id)) {
             throw duplicated(merged.name());

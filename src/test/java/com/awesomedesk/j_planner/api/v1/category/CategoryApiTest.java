@@ -56,6 +56,22 @@ class CategoryApiTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("D-037: 색을 안 보내거나 null이면 null로 저장, PATCH로 색을 지울 수도 있다")
+    void colorOptional() throws Exception {
+        mvc.perform(post("/api/v1/categories").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"공부\"}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.color").value(org.hamcrest.Matchers.nullValue()));
+        long id = create("업무", "#A6323F");
+        mvc.perform(patch("/api/v1/categories/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"color\":null}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.color").value(org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.name").value("업무"));
+        mvc.perform(post("/api/v1/categories").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"운동\",\"color\":null}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.color").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     @DisplayName("같은 이름 추가 → 409 CATEGORY_NAME_DUPLICATED")
     void createDuplicate() throws Exception {
         create("공부", "#2F62A8");
@@ -142,12 +158,17 @@ class CategoryApiTest extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("미지정: 색은 바꿀 수 있고, 이름 변경·삭제·이동은 409 DEFAULT_CATEGORY_LOCKED")
+    @DisplayName("미지정: 이름·색 변경, 삭제, 이동 모두 409 DEFAULT_CATEGORY_LOCKED (D-037). 같은 값 PATCH는 200")
     void defaultCategoryLocked() throws Exception {
         long defaultId = defaultCategoryId();
         mvc.perform(patch("/api/v1/categories/" + defaultId).contentType(MediaType.APPLICATION_JSON).content("{\"color\":\"#555555\"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("DEFAULT_CATEGORY_LOCKED"));
+        mvc.perform(patch("/api/v1/categories/" + defaultId).contentType(MediaType.APPLICATION_JSON).content("{\"color\":null}"))
+            .andExpect(status().isConflict());
+        mvc.perform(patch("/api/v1/categories/" + defaultId).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"미지정\",\"color\":\"#6B6B6B\"}"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.color").value("#555555"));
+            .andExpect(jsonPath("$.color").value("#6B6B6B"));
         mvc.perform(patch("/api/v1/categories/" + defaultId).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"기타\"}"))
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.code").value("DEFAULT_CATEGORY_LOCKED"));

@@ -36,7 +36,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE categories (
     `category_id`       BIGINT          NOT NULL AUTO_INCREMENT COMMENT '카테고리번호',
     `name`              VARCHAR(50)     NOT NULL                COMMENT '이름',
-    `color`             VARCHAR(7)      NOT NULL                COMMENT '색 (#RRGGBB)',
+    `color`             VARCHAR(7)      NULL                    COMMENT '색 (#RRGGBB). NULL = 고르지 않음, 화면에서는 기본색 #2F62A8 (D-037)',
     `is_default`        VARCHAR(1)      NOT NULL DEFAULT 'N'    COMMENT '기본 카테고리(미지정) 여부'
                                         CHECK (`is_default` IN ('N', 'Y')),
     `sort_order`        INT             NOT NULL DEFAULT 0      COMMENT '표시 순서 (미지정은 항상 맨 위, D-029)',

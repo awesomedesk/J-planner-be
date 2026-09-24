@@ -34,7 +34,8 @@ public class Category extends BaseEntity {
     @Column(nullable = false, length = 50)
     private String name;
 
-    @Column(nullable = false, length = 7)
+    /** null = 고르지 않음 (화면 기본색 #2F62A8, D-037) */
+    @Column(length = 7)
     private String color;
 
     @Column(name = "is_default", nullable = false, length = 1)

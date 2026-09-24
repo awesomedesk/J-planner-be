@@ -1,7 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.category;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -14,7 +13,7 @@ public record CategoryRequest(
     @Size(max = 50, message = "이름은 50자까지입니다.")
     String name,
 
-    @NotNull(message = "색을 고르세요.")
+    /** null = 고르지 않음 (D-037) */
     @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "색은 #RRGGBB 형식입니다.")
     String color
 ) {
