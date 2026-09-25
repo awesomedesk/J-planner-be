@@ -56,6 +56,8 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 - `schema.sql` = tables + required seed rows only (also used by tests and production). `sample-data.sql` = local-only test data (dates around 2026-09-25)
 - JDBC URLs use `connectionTimeZone=Asia/Seoul&preserveInstants=false` so DATETIME values are stored/read as-is regardless of the JVM time zone
 
+- Local profile writes a request log (method, path, status, ms) to `logs/access.YYYY-MM-DD.log` — use it to check what the server actually returned
+
 ### Testing
 - API tests extend `support/IntegrationTest`: real MySQL test DB `jp_test` (created automatically), tables from `sql/schema.sql`, data reset before each test by `src/test/resources/sql/reset.sql`
 - Needs a local MySQL on 127.0.0.1:3306. Override with `JP_TEST_DB_URL`, `JP_TEST_DB_USERNAME`, `JP_TEST_DB_PASSWORD`

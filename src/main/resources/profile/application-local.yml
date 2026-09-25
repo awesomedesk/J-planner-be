@@ -1,4 +1,14 @@
 ---
+# 로컬: 요청마다 메서드·경로·상태 코드·처리 시간을 logs/access.YYYY-MM-DD.log에 남긴다 (FE 연결 확인용)
+server:
+  tomcat:
+    accesslog:
+      enabled: true
+      directory: ${user.dir}/logs
+      prefix: access
+      suffix: .log
+      pattern: '%{yyyy-MM-dd HH:mm:ss}t "%r" %s %{ms}Tms'
+
 spring:
   config:
     activate:
