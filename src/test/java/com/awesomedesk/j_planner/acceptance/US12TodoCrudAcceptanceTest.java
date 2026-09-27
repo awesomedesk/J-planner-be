@@ -107,11 +107,11 @@ class US12TodoCrudAcceptanceTest extends AcceptanceTest {
     }
 
     @Test
-    @DisplayName("D-041: 주간 Todo는 저장하는 시점의 주 시작 요일 기준. 설정을 바꿔도 기존 Todo는 그대로")
+    @DisplayName("AC4: 주간 Todo 시작일은 저장 시점의 주 시작 요일 기준. 설정을 바꿔도 기존 Todo는 그대로 (D-041)")
     void weekStartAtSaveTime() throws Exception {
         long sundayWeek = createTodo("일요일 주간", "WEEK", "2026-09-20", "2026-09-26");
 
-        jdbc.update("UPDATE user_settings SET week_start_day = 'MON' WHERE setting_id = 1");
+        patchJson("/api/v1/settings", "{\"weekStartDay\":\"MON\"}").andExpect(status().isOk());
 
         // 기존 Todo는 그대로 보인다
         getJson(URL + "/" + sundayWeek)
@@ -123,5 +123,39 @@ class US12TodoCrudAcceptanceTest extends AcceptanceTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errors[0].field").value("startDate"));
         createTodo("월요일 주간", "WEEK", "2026-09-21", "2026-09-27");
+    }
+
+    @Test
+    @DisplayName("AC4: 주 시작 요일을 바꾼 뒤에도 예전 주간 Todo의 제목·색·시간·완료는 고칠 수 있고, 날짜를 바꿀 때만 새 기준 (D-042)")
+    void oldWeekTodoEditable() throws Exception {
+        long sundayWeek = createTodo("일요일 주간", "WEEK", "2026-09-20", "2026-09-26");
+        patchJson("/api/v1/settings", "{\"weekStartDay\":\"MON\"}").andExpect(status().isOk());
+
+        patchJson(URL + "/" + sundayWeek, "{\"title\":\"운동 3회\",\"color\":\"#2F62A8\",\"time\":{\"start\":\"07:00\",\"durationMinutes\":40}}")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value("운동 3회"))
+            .andExpect(jsonPath("$.startDate").value("2026-09-20"));
+        patchJson(URL + "/" + sundayWeek, "{\"completed\":true}")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.completed").value(true));
+
+        // 날짜를 바꾸면 새 기준(월요일)을 따른다. 자동으로 옮기지 않는다
+        patchJson(URL + "/" + sundayWeek, "{\"startDate\":\"2026-09-27\",\"endDate\":\"2026-10-03\"}")
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors[0].field").value("startDate"));
+        patchJson(URL + "/" + sundayWeek, "{\"startDate\":\"2026-09-28\",\"endDate\":\"2026-10-04\"}")
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("AC4: 다른 종류를 주간으로 바꿀 때도 새 기준으로 검사한다 (D-042)")
+    void changeTypeToWeekChecked() throws Exception {
+        long day = createDayTodo("장보기", TODAY);
+        patchJson("/api/v1/settings", "{\"weekStartDay\":\"MON\"}").andExpect(status().isOk());
+
+        patchJson(URL + "/" + day, "{\"type\":\"WEEK\",\"startDate\":\"2026-09-20\",\"endDate\":\"2026-09-26\"}")
+            .andExpect(status().isBadRequest());
+        patchJson(URL + "/" + day, "{\"type\":\"WEEK\",\"startDate\":\"2026-09-21\",\"endDate\":\"2026-09-27\"}")
+            .andExpect(status().isOk());
     }
 }
