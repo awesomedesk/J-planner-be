@@ -58,10 +58,15 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 
 - Local profile writes a request log (method, path, status, ms) to `logs/access.YYYY-MM-DD.log` — use it to check what the server actually returned
 
-### Testing
-- API tests extend `support/IntegrationTest`: real MySQL test DB `jp_test` (created automatically), tables from `sql/schema.sql`, data reset before each test by `src/test/resources/sql/reset.sql`
+### Testing (TDD)
+Work test-first (08-api-design.md 12-1): turn each acceptance criterion (AC) in `j-planner-product/09-backlog.md` into a failing test, commit it (`Test: … (빨강)`), then implement until green (`Feat:`), then clean up (`Refactor:`).
+- **Acceptance tests** `acceptance/USxx…AcceptanceTest` extend `AcceptanceTest`: one class per story, one test per AC, `@DisplayName("ACn: <AC sentence>")`. FE-only ACs are listed as "FE 담당" in the class Javadoc. Helpers: `postJson`, `createCategory`, `createTodo`, `read(result, "$.path")` …
+- **API tests** `api/v1/<feature>/…ApiTest`: detailed rules from 08 (validation, query combinations)
+- **Unit tests** (no DB, fast): rule classes such as `TodoDateRule`, `ScheduleTimes`, `Positions`, `DateRanges`, `JsonMergePatch`, entities. Use `support/ApiExceptionAssertions` for error code / field checks. Put rules in small classes so they can be unit tested
+- API/acceptance tests extend `support/IntegrationTest`: real MySQL test DB `jp_test` (created automatically), tables from `sql/schema.sql`, data reset before each test by `src/test/resources/sql/reset.sql`. "Now" is fixed to 2026-09-25 (Fri) 09:00 KST by `FixedClockConfig`; week starts on Sunday
 - Needs a local MySQL on 127.0.0.1:3306. Override with `JP_TEST_DB_URL`, `JP_TEST_DB_USERNAME`, `JP_TEST_DB_PASSWORD`
 - Error shape / CORS tests use `@WebMvcTest` (`org.springframework.boot.webmvc.test.autoconfigure`)
+- If a test uncovers a case the planning docs don't decide, ask PO instead of choosing
 
 ### Dependencies
 - Spring Boot Starter (Web, Data JPA, AOP)
