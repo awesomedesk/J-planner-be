@@ -1,6 +1,7 @@
 package com.awesomedesk.j_planner.api.v1.todo;
 
 import com.awesomedesk.j_planner.api.v1.category.CategoryRepository;
+import com.awesomedesk.j_planner.api.v1.settings.SettingsService;
 import com.awesomedesk.j_planner.common.api.DateRanges;
 import com.awesomedesk.j_planner.common.api.JsonMergePatch;
 import com.awesomedesk.j_planner.common.api.Positions;
@@ -13,7 +14,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -33,7 +33,7 @@ public class TodoService {
     private final CategoryRepository categoryRepository;
     private final JsonMergePatch jsonMergePatch;
     private final RequestValidator requestValidator;
-    private final JdbcTemplate jdbcTemplate;
+    private final SettingsService settingsService;
     private final Clock clock;
 
     // ------------------------------------------------------------------ 조회
@@ -124,7 +124,7 @@ public class TodoService {
         LocalDate start = r.startDate();
         LocalDate end = r.endDate();
         // 주 시작 요일은 주간일 때만 설정에서 읽는다 (저장 시점 기준, D-041)
-        DayOfWeek weekStart = r.type() == TodoType.WEEK ? weekStartDay() : null;
+        DayOfWeek weekStart = r.type() == TodoType.WEEK ? settingsService.weekStartDay() : null;
         TodoDateRule.check(r.type(), start, end, weekStart);
 
         LocalTime startTime = null;
@@ -142,11 +142,5 @@ public class TodoService {
         }
 
         return new Todo.Values(categoryId, r.title().strip(), r.type(), start, end, startTime, duration, r.color());
-    }
-
-    /** 설정의 주 시작 요일 (CAL-04). 설정 API(US-26)가 생기면 그쪽으로 옮긴다 */
-    private DayOfWeek weekStartDay() {
-        String value = jdbcTemplate.queryForObject("SELECT week_start_day FROM user_settings WHERE setting_id = 1", String.class);
-        return "MON".equals(value) ? DayOfWeek.MONDAY : DayOfWeek.SUNDAY;
     }
 }

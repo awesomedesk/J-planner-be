@@ -1,0 +1,41 @@
+package com.awesomedesk.j_planner.api.v1.settings;
+
+import com.awesomedesk.j_planner.common.error.ApiException;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/** 설정의 필드 사이 규칙 (08-api-design.md 9절). 필드 하나의 규칙은 {@link SettingsRequest}의 Bean Validation */
+final class SettingsRules {
+
+    private static final Set<String> SIDEBAR_TYPES = Set.of("TODO", "DDAY", "DIARY", "MEMO");
+
+    private SettingsRules() {
+    }
+
+    static void check(SettingsRequest r) {
+        checkTimetable(r.timetableStartHour(), r.timetableEndHour());
+        checkSlotMinutes(r.slotMinutes());
+        checkSidebarItems(r.sidebarItems());
+    }
+
+    static void checkTimetable(int startHour, int endHour) {
+        if (endHour <= startHour) {
+            throw ApiException.validation("timetableEndHour", "시간표 끝은 시작보다 뒤여야 합니다.");
+        }
+    }
+
+    static void checkSlotMinutes(int slotMinutes) {
+        if (slotMinutes != 30 && slotMinutes != 60) {
+            throw ApiException.validation("slotMinutes", "칸 간격은 30분 또는 60분입니다.");
+        }
+    }
+
+    /** 4개 모두, 한 번씩 (배열 순서 = 표시 순서) */
+    static void checkSidebarItems(List<SettingsRequest.SidebarItem> items) {
+        Set<String> types = items.stream().map(SettingsRequest.SidebarItem::type).collect(Collectors.toSet());
+        if (items.size() != SIDEBAR_TYPES.size() || !types.equals(SIDEBAR_TYPES)) {
+            throw ApiException.validation("sidebarItems", "사이드바 항목 TODO, DDAY, DIARY, MEMO를 한 번씩 모두 보내세요.");
+        }
+    }
+}
