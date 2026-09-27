@@ -66,7 +66,7 @@ public class TodoService {
     @Transactional
     public TodoResponse create(TodoRequest request) {
         int sortOrder = todoRepository.findMaxSortOrder() + 1;
-        Todo saved = todoRepository.save(new Todo(toValues(request), sortOrder));
+        Todo saved = todoRepository.save(new Todo(toValues(request, true), sortOrder));
         return TodoResponse.of(saved, today());
     }
 
@@ -76,7 +76,10 @@ public class TodoService {
         LocalDate today = today();
         TodoRequest merged = requestValidator.validate(
             jsonMergePatch.apply(TodoResponse.of(todo, today).toRequest(), patch, TodoRequest.class));
-        todo.apply(toValues(merged));
+        // 종류·날짜를 바꿀 때만 날짜 규칙을 다시 검사한다 (D-042: 설정을 바꾼 뒤에도 예전 주간 Todo는 고칠 수 있게)
+        boolean datesChanged = todo.getType() != merged.type()
+            || !todo.getStartDate().equals(merged.startDate()) || !todo.getEndDate().equals(merged.endDate());
+        todo.apply(toValues(merged, datesChanged));
         if (merged.completed() == null) {
             throw ApiException.validation("completed", "완료 여부는 true 또는 false입니다.");
         }
@@ -119,13 +122,18 @@ public class TodoService {
             .toList();
     }
 
-    /** 검증(종류별 날짜 규칙·카테고리)과 정리를 마친 값 */
-    private Todo.Values toValues(TodoRequest r) {
+    /**
+     * 검증(종류별 날짜 규칙·카테고리)과 정리를 마친 값
+     * @param checkDates 종류별 날짜 규칙을 검사할지 (새로 만들 때, 또는 종류·날짜를 바꿀 때)
+     */
+    private Todo.Values toValues(TodoRequest r, boolean checkDates) {
         LocalDate start = r.startDate();
         LocalDate end = r.endDate();
-        // 주 시작 요일은 주간일 때만 설정에서 읽는다 (저장 시점 기준, D-041)
-        DayOfWeek weekStart = r.type() == TodoType.WEEK ? settingsService.weekStartDay() : null;
-        TodoDateRule.check(r.type(), start, end, weekStart);
+        if (checkDates) {
+            // 주 시작 요일은 주간일 때만 설정에서 읽는다 (저장 시점 기준, D-041)
+            DayOfWeek weekStart = r.type() == TodoType.WEEK ? settingsService.weekStartDay() : null;
+            TodoDateRule.check(r.type(), start, end, weekStart);
+        }
 
         LocalTime startTime = null;
         Integer duration = null;
