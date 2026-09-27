@@ -1,13 +1,12 @@
 package com.awesomedesk.j_planner.support;
 
-import java.time.Clock;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
-/** 테스트의 "지금" = 2026-09-25(금) 09:00 한국 시간 */
+/** 테스트의 "지금" = 2026-09-25(금) 09:00 한국 시간. 테스트마다 이 시각으로 되돌린다 (IntegrationTest) */
 @TestConfiguration
 public class FixedClockConfig {
 
@@ -16,7 +15,7 @@ public class FixedClockConfig {
 
     @Bean
     @Primary
-    public Clock fixedClock() {
-        return Clock.fixed(NOW.toInstant(), ZONE);
+    public TestClock fixedClock() {
+        return new TestClock(NOW.toInstant(), ZONE);
     }
 }
