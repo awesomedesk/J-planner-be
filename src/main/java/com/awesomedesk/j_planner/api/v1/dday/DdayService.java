@@ -1,11 +1,14 @@
 package com.awesomedesk.j_planner.api.v1.dday;
 
+import com.awesomedesk.j_planner.common.api.DateRanges;
 import com.awesomedesk.j_planner.common.api.JsonMergePatch;
 import com.awesomedesk.j_planner.common.api.Positions;
 import com.awesomedesk.j_planner.common.api.RequestValidator;
 import com.awesomedesk.j_planner.common.error.ApiException;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -80,6 +83,22 @@ public class DdayService {
         }
         ddayRepository.flush();
         return DdayResponse.of(dday, today());
+    }
+
+    /** 달력 표시 (US-23). 날짜 순, 같은 날은 D-Day 순서 */
+    public List<DdayMarkResponse> marks(LocalDate from, LocalDate to) {
+        DateRanges.check(from, to);
+        List<DdayMarkResponse> result = new ArrayList<>();
+        for (Dday d : ddayRepository.findAllOrdered()) {
+            DdayMarkCalculator.Spec spec = new DdayMarkCalculator.Spec(d.getCountType(), d.getTargetDate(), d.display(),
+                d.getCreatedAt().toLocalDate());
+            for (DdayMarkCalculator.Mark m : DdayMarkCalculator.marks(spec, from, to)) {
+                result.add(new DdayMarkResponse(d.getId(), m.date(), m.label(), m.kind()));
+            }
+        }
+        // findAllOrdered가 D-Day 순서라, 날짜로 안정 정렬하면 같은 날은 D-Day 순서가 유지된다
+        result.sort(Comparator.comparing(DdayMarkResponse::date));
+        return result;
     }
 
     private Dday find(Long id) {

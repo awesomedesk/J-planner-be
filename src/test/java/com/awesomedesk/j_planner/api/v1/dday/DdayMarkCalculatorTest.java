@@ -148,6 +148,7 @@ class DdayMarkCalculatorTest {
             assertThat(marks(CountType.COUNTDOWN, "2026-10-10", all, "2026-09-28", "2026-09-25", "2026-10-15"))
                 .extracting(Mark::date, Mark::kind)
                 .containsExactly(
+                    tuple(d("2026-09-25"), Kind.INTERVAL), // D-15: N일 단위는 등록일과 관계없음
                     tuple(d("2026-09-28"), Kind.DAILY),
                     tuple(d("2026-09-29"), Kind.DAILY),
                     tuple(d("2026-09-30"), Kind.INTERVAL),
