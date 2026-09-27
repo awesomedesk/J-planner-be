@@ -11,7 +11,6 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -124,36 +123,9 @@ public class TodoService {
     private Todo.Values toValues(TodoRequest r) {
         LocalDate start = r.startDate();
         LocalDate end = r.endDate();
-        switch (r.type()) {
-            case DAY -> {
-                if (!end.equals(start)) {
-                    throw ApiException.validation("endDate", "하루 Todo는 시작일과 마감일이 같아야 합니다.");
-                }
-            }
-            case PERIOD -> {
-                if (end.isBefore(start)) {
-                    throw ApiException.validation("endDate", "마감일은 시작일과 같거나 뒤여야 합니다.");
-                }
-            }
-            case WEEK -> {
-                DayOfWeek weekStart = weekStartDay();
-                if (start.getDayOfWeek() != weekStart) {
-                    throw ApiException.validation("startDate",
-                        "주간 목표의 시작일은 주 시작 요일(" + (weekStart == DayOfWeek.SUNDAY ? "일요일" : "월요일") + ")이어야 합니다.");
-                }
-                if (!end.equals(start.plusDays(6))) {
-                    throw ApiException.validation("endDate", "주간 목표의 마감일은 시작일 + 6일입니다.");
-                }
-            }
-            case MONTH -> {
-                if (start.getDayOfMonth() != 1) {
-                    throw ApiException.validation("startDate", "월간 목표의 시작일은 그달 1일이어야 합니다.");
-                }
-                if (!end.equals(start.with(TemporalAdjusters.lastDayOfMonth()))) {
-                    throw ApiException.validation("endDate", "월간 목표의 마감일은 그달 말일이어야 합니다.");
-                }
-            }
-        }
+        // 주 시작 요일은 주간일 때만 설정에서 읽는다 (저장 시점 기준, D-041)
+        DayOfWeek weekStart = r.type() == TodoType.WEEK ? weekStartDay() : null;
+        TodoDateRule.check(r.type(), start, end, weekStart);
 
         LocalTime startTime = null;
         Integer duration = null;

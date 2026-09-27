@@ -7,7 +7,6 @@ import com.awesomedesk.j_planner.common.api.RequestValidator;
 import com.awesomedesk.j_planner.common.error.ApiException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.Coordinate;
@@ -29,7 +28,6 @@ import tools.jackson.databind.JsonNode;
 public class ScheduleService {
 
     private static final GeometryFactory GEOMETRY = new GeometryFactory();
-    private static final LocalTime END_OF_DAY = LocalTime.of(23, 59, 59);
 
     private final ScheduleRepository scheduleRepository;
     private final CategoryRepository categoryRepository;
@@ -80,17 +78,7 @@ public class ScheduleService {
     /** 검증(필드 사이 규칙 포함)과 정리를 마친 값 */
     private Schedule.Values toValues(ScheduleRequest r) {
         boolean allDay = r.allDay();
-        LocalDateTime start = r.start().withNano(0);
-        LocalDateTime end = r.end().withNano(0);
-        if (allDay) {
-            start = start.toLocalDate().atStartOfDay();
-            end = end.toLocalDate().atTime(END_OF_DAY);
-            if (end.toLocalDate().isBefore(start.toLocalDate())) {
-                throw ApiException.validation("end", "종료 날짜는 시작 날짜와 같거나 뒤여야 합니다.");
-            }
-        } else if (!end.isAfter(start)) {
-            throw ApiException.validation("end", "종료 일시는 시작 일시보다 뒤여야 합니다.");
-        }
+        ScheduleTimes times = ScheduleTimes.of(allDay, r.start(), r.end());
 
         Long categoryId = r.categoryId();
         if (categoryId == null) {
@@ -112,7 +100,8 @@ public class ScheduleService {
             }
         }
 
-        return new Schedule.Values(categoryId, r.title().strip(), allDay, start, end, r.color(), r.description(),
+        return new Schedule.Values(categoryId, r.title().strip(), allDay, times.start(), times.end(),
+            r.color(), r.description(),
             locationName, point, r.url());
     }
 }
