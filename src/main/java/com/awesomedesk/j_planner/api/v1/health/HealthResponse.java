@@ -24,7 +24,8 @@ public record HealthResponse(String status, String version, String commit, Local
         if (build == null) {
             return new HealthResponse("UP", null, null, null, null);
         }
-        LocalDateTime buildTime = build.getTime() == null ? null : LocalDateTime.ofInstant(build.getTime(), SEOUL);
+        LocalDateTime buildTime = build.getTime() == null ? null
+            : LocalDateTime.ofInstant(build.getTime(), SEOUL).withNano(0);
         return new HealthResponse("UP", build.getVersion(), build.get("commit"), toSeoul(build.get("commitTime")),
             buildTime);
     }
