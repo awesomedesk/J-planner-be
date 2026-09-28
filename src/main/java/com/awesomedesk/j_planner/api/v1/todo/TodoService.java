@@ -41,20 +41,25 @@ public class TodoService {
     /** 그날 박스. 오늘이면 지난 미완료도 함께 */
     public List<TodoResponse> box(LocalDate date, List<Long> categoryIds) {
         LocalDate today = today();
-        return toResponses(todoRepository.findBox(date, date.equals(today)), categoryIds, today);
+        CategoryFilter f = CategoryFilter.of(categoryIds);
+        return toResponses(todoRepository.findBox(date, date.equals(today), f.all(), f.ids()), today);
     }
 
     /** 기간과 겹치는 Todo. scheduled면 시간 있는 것만 (시간표 블록) */
     public List<TodoResponse> range(LocalDate from, LocalDate to, boolean scheduled, List<Long> categoryIds) {
         DateRanges.check(from, to);
-        List<Todo> todos = scheduled ? todoRepository.findScheduled(from, to) : todoRepository.findOverlapping(from, to);
-        return toResponses(todos, categoryIds, today());
+        CategoryFilter f = CategoryFilter.of(categoryIds);
+        List<Todo> todos = scheduled
+            ? todoRepository.findScheduled(from, to, f.all(), f.ids())
+            : todoRepository.findOverlapping(from, to, f.all(), f.ids());
+        return toResponses(todos, today());
     }
 
     /** 그날 완료한 Todo (DIARY-04) */
     public List<TodoResponse> completedOn(LocalDate date, List<Long> categoryIds) {
-        return toResponses(todoRepository.findCompletedBetween(date.atStartOfDay(), date.plusDays(1).atStartOfDay()),
-            categoryIds, today());
+        CategoryFilter f = CategoryFilter.of(categoryIds);
+        return toResponses(todoRepository.findCompletedBetween(date.atStartOfDay(), date.plusDays(1).atStartOfDay(),
+            f.all(), f.ids()), today());
     }
 
     public TodoResponse get(Long id) {
@@ -97,10 +102,7 @@ public class TodoService {
     @Transactional
     public TodoResponse move(Long id, Long afterId) {
         Todo todo = find(id);
-        List<Todo> reordered = Positions.move(todoRepository.findAllOrdered(), todo, afterId, Todo::getId);
-        for (int i = 0; i < reordered.size(); i++) {
-            reordered.get(i).changeSortOrder(i);
-        }
+        Positions.reorder(todoRepository.findAllOrdered(), todo, afterId, 0);
         todoRepository.flush();
         return TodoResponse.of(todo, today());
     }
@@ -115,11 +117,18 @@ public class TodoService {
         return LocalDate.now(clock);
     }
 
-    private static List<TodoResponse> toResponses(List<Todo> todos, List<Long> categoryIds, LocalDate today) {
+    private static List<TodoResponse> toResponses(List<Todo> todos, LocalDate today) {
         return todos.stream()
-            .filter(t -> categoryIds == null || categoryIds.isEmpty() || categoryIds.contains(t.getCategoryId()))
             .map(t -> TodoResponse.of(t, today))
             .toList();
+    }
+
+    /** 카테고리 필터 (없거나 비면 전체). IN ()을 피하려고 전체일 때도 자리 채움 값을 둔다 */
+    private record CategoryFilter(boolean all, List<Long> ids) {
+        static CategoryFilter of(List<Long> categoryIds) {
+            boolean all = categoryIds == null || categoryIds.isEmpty();
+            return new CategoryFilter(all, all ? List.of(-1L) : categoryIds);
+        }
     }
 
     /**

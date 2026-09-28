@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.common.api;
 
+import com.awesomedesk.j_planner.common.domain.Sortable;
 import com.awesomedesk.j_planner.common.error.ApiException;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,20 @@ public final class Positions {
             insertAt = index + 1;
         }
         result.add(insertAt, moving);
+        return result;
+    }
+
+    /**
+     * {@link #move} 한 뒤 새 순서대로 sort_order를 {@code firstOrder}부터 다시 매긴다.
+     * 카테고리는 미지정(0) 다음이라 1부터, Todo·D-Day는 0부터.
+     *
+     * @return 새 순서
+     */
+    public static <T extends Sortable> List<T> reorder(List<T> ordered, T moving, Long afterId, int firstOrder) {
+        List<T> result = move(ordered, moving, afterId, Sortable::getId);
+        for (int i = 0; i < result.size(); i++) {
+            result.get(i).changeSortOrder(firstOrder + i);
+        }
         return result;
     }
 }

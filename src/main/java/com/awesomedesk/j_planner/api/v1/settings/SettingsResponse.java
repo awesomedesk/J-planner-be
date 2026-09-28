@@ -4,17 +4,17 @@ import java.util.List;
 
 /** 설정 (08-api-design.md 9절). sidebarItems 배열 순서 = 표시 순서 */
 public record SettingsResponse(
-    String weekStartDay,
-    String startView,
-    String timeFormat,
+    WeekStartDay weekStartDay,
+    StartView startView,
+    TimeFormat timeFormat,
     int slotMinutes,
     boolean darkMode,
-    String colorTheme,
+    ColorTheme colorTheme,
     boolean sidebarOpen,
     List<SidebarItem> sidebarItems
 ) {
 
-    public record SidebarItem(String type, boolean visible) {
+    public record SidebarItem(SidebarItemType type, boolean visible) {
     }
 
     static SettingsResponse of(UserSettings s, List<SidebarItem> items) {

@@ -2,7 +2,6 @@ package com.awesomedesk.j_planner.api.v1.settings;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import java.util.List;
 
 /**
@@ -11,16 +10,13 @@ import java.util.List;
  */
 public record SettingsRequest(
     @NotNull(message = "주 시작 요일을 고르세요.")
-    @Pattern(regexp = "SUN|MON", message = "주 시작 요일은 SUN 또는 MON입니다.")
-    String weekStartDay,
+    WeekStartDay weekStartDay,
 
     @NotNull(message = "처음 화면을 고르세요.")
-    @Pattern(regexp = "MONTH|WEEK|DAY|LAST", message = "처음 화면은 MONTH, WEEK, DAY, LAST 중 하나입니다.")
-    String startView,
+    StartView startView,
 
     @NotNull(message = "시간 표시 형식을 고르세요.")
-    @Pattern(regexp = "24H|12H", message = "시간 표시는 24H 또는 12H입니다.")
-    String timeFormat,
+    TimeFormat timeFormat,
 
     @NotNull(message = "칸 간격을 고르세요.")
     Integer slotMinutes,
@@ -29,8 +25,7 @@ public record SettingsRequest(
     Boolean darkMode,
 
     @NotNull(message = "색 테마를 고르세요.")
-    @Pattern(regexp = "GREEN|BROWN|GRAY", message = "색 테마는 GREEN, BROWN, GRAY 중 하나입니다.")
-    String colorTheme,
+    ColorTheme colorTheme,
 
     @NotNull(message = "사이드바 열림 상태가 필요합니다.")
     Boolean sidebarOpen,
@@ -41,8 +36,7 @@ public record SettingsRequest(
 
     public record SidebarItem(
         @NotNull(message = "항목 종류가 필요합니다.")
-        @Pattern(regexp = "TODO|DDAY|DIARY|MEMO", message = "항목은 TODO, DDAY, DIARY, MEMO 중 하나입니다.")
-        String type,
+        SidebarItemType type,
 
         @NotNull(message = "표시 여부가 필요합니다.")
         Boolean visible

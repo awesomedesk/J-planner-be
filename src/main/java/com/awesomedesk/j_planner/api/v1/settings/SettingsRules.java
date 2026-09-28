@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 /** 설정의 값 사이 규칙 (08-api-design.md 9절). 필드 하나의 규칙은 {@link SettingsRequest}의 Bean Validation */
 final class SettingsRules {
 
-    private static final Set<String> SIDEBAR_TYPES = Set.of("TODO", "DDAY", "DIARY", "MEMO");
+    private static final Set<SidebarItemType> SIDEBAR_TYPES = Set.of(SidebarItemType.values());
 
     private SettingsRules() {
     }
@@ -26,7 +26,7 @@ final class SettingsRules {
 
     /** 4개 모두, 한 번씩 (배열 순서 = 표시 순서) */
     static void checkSidebarItems(List<SettingsRequest.SidebarItem> items) {
-        Set<String> types = items.stream().map(SettingsRequest.SidebarItem::type).collect(Collectors.toSet());
+        Set<SidebarItemType> types = items.stream().map(SettingsRequest.SidebarItem::type).collect(Collectors.toSet());
         if (items.size() != SIDEBAR_TYPES.size() || !types.equals(SIDEBAR_TYPES)) {
             throw ApiException.validation("sidebarItems", "사이드바 항목 TODO, DDAY, DIARY, MEMO를 한 번씩 모두 보내세요.");
         }

@@ -77,10 +77,7 @@ public class DdayService {
     @Transactional
     public DdayResponse move(Long id, Long afterId) {
         Dday dday = find(id);
-        List<Dday> reordered = Positions.move(ddayRepository.findAllOrdered(), dday, afterId, Dday::getId);
-        for (int i = 0; i < reordered.size(); i++) {
-            reordered.get(i).changeSortOrder(i);
-        }
+        Positions.reorder(ddayRepository.findAllOrdered(), dday, afterId, 0);
         ddayRepository.flush();
         return DdayResponse.of(dday, today());
     }

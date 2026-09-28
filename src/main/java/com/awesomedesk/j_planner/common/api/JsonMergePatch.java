@@ -2,6 +2,7 @@ package com.awesomedesk.j_planner.common.api;
 
 import com.awesomedesk.j_planner.common.error.ApiException;
 import com.awesomedesk.j_planner.common.error.ErrorCode;
+import com.awesomedesk.j_planner.common.error.JsonFieldPath;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
@@ -36,7 +37,7 @@ public class JsonMergePatch {
         try {
             return jsonMapper.treeToValue(target, type);
         } catch (JacksonException e) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "입력값의 형식이 올바르지 않습니다.");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "입력값의 형식이 올바르지 않습니다.", JsonFieldPath.errors(e));
         }
     }
 

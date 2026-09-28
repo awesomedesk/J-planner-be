@@ -1,7 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.todo;
 
 import com.awesomedesk.j_planner.common.api.PositionRequest;
-import com.awesomedesk.j_planner.common.error.ApiException;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
@@ -40,24 +39,11 @@ public class TodoController {
         @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate completedOn,
         @RequestParam(name = "categoryId", required = false) List<Long> categoryIds) {
 
-        boolean byRange = from != null || to != null;
-        int conditions = (date != null ? 1 : 0) + (byRange ? 1 : 0) + (completedOn != null ? 1 : 0);
-        if (conditions != 1) {
-            throw ApiException.invalidQuery("조회 조건은 date, from+to, completedOn 중 하나만 보내세요.");
-        }
-        if (scheduled != null && !byRange) {
-            throw ApiException.invalidQuery("scheduled는 from+to와 함께만 쓸 수 있습니다.");
-        }
-        if (date != null) {
-            return todoService.box(date, categoryIds);
-        }
-        if (completedOn != null) {
-            return todoService.completedOn(completedOn, categoryIds);
-        }
-        if (from == null || to == null) {
-            throw ApiException.invalidQuery("from과 to를 함께 보내세요.");
-        }
-        return todoService.range(from, to, Boolean.TRUE.equals(scheduled), categoryIds);
+        return switch (TodoQuery.of(date, from, to, scheduled, completedOn)) {
+            case TodoQuery.Box q -> todoService.box(q.date(), categoryIds);
+            case TodoQuery.Range q -> todoService.range(q.from(), q.to(), q.scheduled(), categoryIds);
+            case TodoQuery.CompletedOn q -> todoService.completedOn(q.date(), categoryIds);
+        };
     }
 
     @GetMapping("/{id}")

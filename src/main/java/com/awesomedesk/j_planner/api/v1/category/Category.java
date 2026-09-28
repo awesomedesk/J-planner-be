@@ -2,6 +2,7 @@ package com.awesomedesk.j_planner.api.v1.category;
 
 import com.awesomedesk.j_planner.common.converter.attribute.BooleanToStringConverter;
 import com.awesomedesk.j_planner.common.domain.BaseEntity;
+import com.awesomedesk.j_planner.common.domain.Sortable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -24,7 +25,7 @@ import org.hibernate.annotations.SQLRestriction;
 @Table(name = "categories")
 @SQLDelete(sql = "UPDATE categories SET deleted = 'Y', deleted_at = NOW() WHERE category_id = ?")
 @SQLRestriction("deleted = 'N'")
-public class Category extends BaseEntity {
+public class Category extends BaseEntity implements Sortable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -57,6 +58,7 @@ public class Category extends BaseEntity {
         this.color = color;
     }
 
+    @Override
     public void changeSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
     }

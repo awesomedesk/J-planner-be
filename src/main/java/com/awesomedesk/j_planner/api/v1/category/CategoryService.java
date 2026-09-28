@@ -105,10 +105,7 @@ public class CategoryService {
         Long normalizedAfterId = defaultCategory.getId().equals(afterId) ? null : afterId;
 
         List<Category> others = categoryRepository.findAllOrdered().stream().filter(c -> !c.isDefault()).toList();
-        List<Category> reordered = Positions.move(others, category, normalizedAfterId, Category::getId);
-        for (int i = 0; i < reordered.size(); i++) {
-            reordered.get(i).changeSortOrder(i + 1);
-        }
+        Positions.reorder(others, category, normalizedAfterId, 1); // 미지정(0) 다음부터
         categoryRepository.flush();
         return get(id);
     }

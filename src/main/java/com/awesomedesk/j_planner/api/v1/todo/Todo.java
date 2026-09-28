@@ -2,6 +2,7 @@ package com.awesomedesk.j_planner.api.v1.todo;
 
 import com.awesomedesk.j_planner.common.converter.attribute.BooleanToStringConverter;
 import com.awesomedesk.j_planner.common.domain.BaseEntity;
+import com.awesomedesk.j_planner.common.domain.Sortable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -29,7 +30,7 @@ import org.hibernate.annotations.SQLRestriction;
 @Table(name = "todos")
 @SQLDelete(sql = "UPDATE todos SET deleted = 'Y', deleted_at = NOW() WHERE todo_id = ?")
 @SQLRestriction("deleted = 'N'")
-public class Todo extends BaseEntity {
+public class Todo extends BaseEntity implements Sortable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -99,6 +100,7 @@ public class Todo extends BaseEntity {
         this.completedAt = completed ? now : null;
     }
 
+    @Override
     public void changeSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
     }

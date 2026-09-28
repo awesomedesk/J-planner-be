@@ -164,6 +164,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         if (ex instanceof MissingServletRequestParameterException e) {
             return List.of(new FieldErrorDetail(e.getParameterName(), "필수 조회 조건입니다."));
         }
+        if (ex instanceof HttpMessageNotReadableException) {
+            for (Throwable t = ex.getCause(); t != null; t = t.getCause()) {
+                if (t instanceof tools.jackson.core.JacksonException je) {
+                    return JsonFieldPath.errors(je);
+                }
+            }
+        }
         if (ex instanceof TypeMismatchException e && e.getPropertyName() != null) {
             return List.of(new FieldErrorDetail(e.getPropertyName(), "형식이 올바르지 않습니다."));
         }

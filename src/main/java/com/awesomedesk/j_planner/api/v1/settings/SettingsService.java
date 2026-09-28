@@ -45,7 +45,7 @@ public class SettingsService {
 
     /** 주 시작 요일 (CAL-04). 주간 Todo 날짜 검사에 쓴다 (D-041) */
     public DayOfWeek weekStartDay() {
-        return "MON".equals(find().getWeekStartDay()) ? DayOfWeek.MONDAY : DayOfWeek.SUNDAY;
+        return find().getWeekStartDay().toDayOfWeek();
     }
 
     private UserSettings find() {

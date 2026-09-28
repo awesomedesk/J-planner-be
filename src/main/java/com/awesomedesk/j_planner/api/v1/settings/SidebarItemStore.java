@@ -18,7 +18,7 @@ class SidebarItemStore {
     List<SettingsResponse.SidebarItem> find(long settingId) {
         return jdbc.query(
             "SELECT item_type, visible FROM sidebar_items WHERE setting_id = ? ORDER BY sort_order",
-            (rs, i) -> new SettingsResponse.SidebarItem(rs.getString("item_type"), "Y".equals(rs.getString("visible"))),
+            (rs, i) -> new SettingsResponse.SidebarItem(SidebarItemType.valueOf(rs.getString("item_type")), "Y".equals(rs.getString("visible"))),
             settingId);
     }
 
@@ -27,7 +27,7 @@ class SidebarItemStore {
         for (int i = 0; i < items.size(); i++) {
             SettingsRequest.SidebarItem item = items.get(i);
             jdbc.update("INSERT INTO sidebar_items (setting_id, item_type, visible, sort_order) VALUES (?, ?, ?, ?)",
-                settingId, item.type(), item.visible() ? "Y" : "N", i);
+                settingId, item.type().name(), item.visible() ? "Y" : "N", i);
         }
     }
 }

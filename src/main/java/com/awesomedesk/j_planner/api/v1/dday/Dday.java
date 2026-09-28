@@ -4,6 +4,7 @@ import com.awesomedesk.j_planner.api.v1.dday.DdayRequest.Display;
 import com.awesomedesk.j_planner.api.v1.dday.DdayRequest.Option;
 import com.awesomedesk.j_planner.common.converter.attribute.BooleanToStringConverter;
 import com.awesomedesk.j_planner.common.domain.BaseEntity;
+import com.awesomedesk.j_planner.common.domain.Sortable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -27,7 +28,7 @@ import org.hibernate.annotations.SQLRestriction;
 @Table(name = "ddays")
 @SQLDelete(sql = "UPDATE ddays SET deleted = 'Y', deleted_at = NOW() WHERE dday_id = ?")
 @SQLRestriction("deleted = 'N'")
-public class Dday extends BaseEntity {
+public class Dday extends BaseEntity implements Sortable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -87,6 +88,7 @@ public class Dday extends BaseEntity {
         this.showYearly = d.yearly();
     }
 
+    @Override
     public void changeSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
     }

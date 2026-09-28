@@ -5,6 +5,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
@@ -31,14 +33,17 @@ public class UserSettings {
     @Column(name = "setting_id")
     private Long id;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "week_start_day", nullable = false, length = 3)
-    private String weekStartDay;
+    private WeekStartDay weekStartDay;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "start_view", nullable = false, length = 10)
-    private String startView;
+    private StartView startView;
 
+    @Convert(converter = TimeFormat.DbConverter.class)
     @Column(name = "time_format", nullable = false, length = 3)
-    private String timeFormat;
+    private TimeFormat timeFormat;
 
     @Column(name = "slot_minutes", nullable = false)
     private int slotMinutes;
@@ -47,8 +52,9 @@ public class UserSettings {
     @Convert(converter = BooleanToStringConverter.class)
     private boolean darkMode;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "color_theme", nullable = false, length = 10)
-    private String colorTheme;
+    private ColorTheme colorTheme;
 
     @Column(name = "sidebar_open", nullable = false, length = 1)
     @Convert(converter = BooleanToStringConverter.class)

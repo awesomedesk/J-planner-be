@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class SettingsRulesTest {
 
     private static List<SettingsRequest.SidebarItem> items(String... types) {
-        return java.util.Arrays.stream(types).map(t -> new SettingsRequest.SidebarItem(t, true)).toList();
+        return java.util.Arrays.stream(types).map(t -> new SettingsRequest.SidebarItem(SidebarItemType.valueOf(t), true)).toList();
     }
 
     @Test
