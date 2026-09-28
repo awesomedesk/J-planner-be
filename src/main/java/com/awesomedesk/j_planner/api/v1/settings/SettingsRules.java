@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** 설정의 필드 사이 규칙 (08-api-design.md 9절). 필드 하나의 규칙은 {@link SettingsRequest}의 Bean Validation */
+/** 설정의 값 사이 규칙 (08-api-design.md 9절). 필드 하나의 규칙은 {@link SettingsRequest}의 Bean Validation */
 final class SettingsRules {
 
     private static final Set<String> SIDEBAR_TYPES = Set.of("TODO", "DDAY", "DIARY", "MEMO");
@@ -14,15 +14,8 @@ final class SettingsRules {
     }
 
     static void check(SettingsRequest r) {
-        checkTimetable(r.timetableStartHour(), r.timetableEndHour());
         checkSlotMinutes(r.slotMinutes());
         checkSidebarItems(r.sidebarItems());
-    }
-
-    static void checkTimetable(int startHour, int endHour) {
-        if (endHour <= startHour) {
-            throw ApiException.validation("timetableEndHour", "시간표 끝은 시작보다 뒤여야 합니다.");
-        }
     }
 
     static void checkSlotMinutes(int slotMinutes) {

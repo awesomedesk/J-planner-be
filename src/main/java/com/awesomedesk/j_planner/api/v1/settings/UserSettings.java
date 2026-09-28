@@ -40,12 +40,6 @@ public class UserSettings {
     @Column(name = "time_format", nullable = false, length = 3)
     private String timeFormat;
 
-    @Column(name = "timetable_start_hour", nullable = false)
-    private int timetableStartHour;
-
-    @Column(name = "timetable_end_hour", nullable = false)
-    private int timetableEndHour;
-
     @Column(name = "slot_minutes", nullable = false)
     private int slotMinutes;
 
@@ -69,8 +63,6 @@ public class UserSettings {
         this.weekStartDay = r.weekStartDay();
         this.startView = r.startView();
         this.timeFormat = r.timeFormat();
-        this.timetableStartHour = r.timetableStartHour();
-        this.timetableEndHour = r.timetableEndHour();
         this.slotMinutes = r.slotMinutes();
         this.darkMode = r.darkMode();
         this.colorTheme = r.colorTheme();

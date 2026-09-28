@@ -213,8 +213,6 @@ CREATE TABLE user_settings (
                                         CHECK (`start_view` IN ('MONTH', 'WEEK', 'DAY', 'LAST')),
     `time_format`           VARCHAR(3)  NOT NULL DEFAULT '24H'  COMMENT '시간 표시'
                                         CHECK (`time_format` IN ('24H', '12H')),
-    `timetable_start_hour`  TINYINT     NOT NULL DEFAULT 6      COMMENT '시간표 시작 시 (0~23)',
-    `timetable_end_hour`    TINYINT     NOT NULL DEFAULT 24     COMMENT '시간표 끝 시 (1~24)',
     `slot_minutes`          TINYINT     NOT NULL DEFAULT 60     COMMENT '시간표 칸 간격(분)'
                                         CHECK (`slot_minutes` IN (30, 60)),
     `dark_mode`             VARCHAR(1)  NOT NULL DEFAULT 'N'    COMMENT '다크 모드'
@@ -226,10 +224,7 @@ CREATE TABLE user_settings (
     `created_at`            DATETIME    NOT NULL DEFAULT NOW()  COMMENT '생성일시',
     `updated_at`            DATETIME    NOT NULL DEFAULT NOW()  COMMENT '수정일시',
     PRIMARY KEY (setting_id),
-    CONSTRAINT ck_user_settings_single    CHECK (`setting_id` = 1),
-    CONSTRAINT ck_user_settings_timetable CHECK (`timetable_start_hour` BETWEEN 0 AND 23
-                                                 AND `timetable_end_hour` BETWEEN 1 AND 24
-                                                 AND `timetable_start_hour` < `timetable_end_hour`)
+    CONSTRAINT ck_user_settings_single    CHECK (`setting_id` = 1)
 ) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '사용자 설정';
 
 -- 사이드바·날짜 시트 항목 표시/순서 (SIDE-02, 03)

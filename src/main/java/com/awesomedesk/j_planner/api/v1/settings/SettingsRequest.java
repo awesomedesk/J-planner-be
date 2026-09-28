@@ -1,15 +1,13 @@
 package com.awesomedesk.j_planner.api.v1.settings;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import java.util.List;
 
 /**
  * 설정 PATCH를 현재 값에 합친 결과 (08-api-design.md 9절). 모든 항목이 필수라 null로 지울 수 없다.
- * 필드 사이 규칙(시간표 시작&lt;끝, 칸 간격, 사이드바 4개)은 {@link SettingsRules}.
+ * 값 사이 규칙(칸 간격, 사이드바 4개)은 {@link SettingsRules}.
  */
 public record SettingsRequest(
     @NotNull(message = "주 시작 요일을 고르세요.")
@@ -23,16 +21,6 @@ public record SettingsRequest(
     @NotNull(message = "시간 표시 형식을 고르세요.")
     @Pattern(regexp = "24H|12H", message = "시간 표시는 24H 또는 12H입니다.")
     String timeFormat,
-
-    @NotNull(message = "시간표 시작 시각을 고르세요.")
-    @Min(value = 0, message = "시간표 시작은 0~23시입니다.")
-    @Max(value = 23, message = "시간표 시작은 0~23시입니다.")
-    Integer timetableStartHour,
-
-    @NotNull(message = "시간표 끝 시각을 고르세요.")
-    @Min(value = 1, message = "시간표 끝은 1~24시입니다.")
-    @Max(value = 24, message = "시간표 끝은 1~24시입니다.")
-    Integer timetableEndHour,
 
     @NotNull(message = "칸 간격을 고르세요.")
     Integer slotMinutes,
