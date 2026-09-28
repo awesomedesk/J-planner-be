@@ -53,6 +53,14 @@ class GlobalExceptionHandlerTest {
             return "ok";
         }
 
+        record TypedBody(Integer count, LocalDate date) {
+        }
+
+        @PostMapping("/test/typed")
+        String typed(@RequestBody TypedBody body) {
+            return "ok";
+        }
+
         @GetMapping("/test/conflict")
         void conflict() {
             throw new DataIntegrityViolationException("Duplicate entry '2026-09-28' for key 'diaries.uk_diaries_active_date'");
@@ -104,6 +112,15 @@ class GlobalExceptionHandlerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
             .andExpect(jsonPath("$.errors", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("본문 값의 형식이 틀림(숫자 자리에 글자 등) → 400 VALIDATION_FAILED, errors에 필드 이름")
+    void wrongValueType() throws Exception {
+        mvc.perform(post("/test/typed").contentType(MediaType.APPLICATION_JSON).content("{\"count\":\"많이\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("count"));
     }
 
     @Test

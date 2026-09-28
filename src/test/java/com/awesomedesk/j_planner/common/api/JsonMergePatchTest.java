@@ -2,7 +2,9 @@ package com.awesomedesk.j_planner.common.api;
 
 import static com.awesomedesk.j_planner.support.ApiExceptionAssertions.assertErrorCode;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
+import com.awesomedesk.j_planner.common.error.ApiException;
 import com.awesomedesk.j_planner.common.error.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +51,15 @@ class JsonMergePatchTest {
     @DisplayName("빈 객체는 아무것도 바꾸지 않는다")
     void emptyPatch() {
         assertThat(apply("{}")).isEqualTo(current);
+    }
+
+    @Test
+    @DisplayName("형식이 틀린 값은 그 필드 이름으로 알려준다 (안쪽 필드는 점으로)")
+    void invalidFieldName() {
+        ApiException e = catchThrowableOfType(ApiException.class, () -> apply("{\"count\":\"많이\"}"));
+        assertThat(e.getErrors()).extracting("field").containsExactly("count");
+        ApiException nested = catchThrowableOfType(ApiException.class, () -> apply("{\"place\":{\"latitude\":\"북쪽\"}}"));
+        assertThat(nested.getErrors()).extracting("field").containsExactly("place.latitude");
     }
 
     @Test
