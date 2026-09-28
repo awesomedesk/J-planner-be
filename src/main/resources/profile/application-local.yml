@@ -15,7 +15,7 @@ spring:
       on-profile: local
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/jp?useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&connectionTimeZone=Asia/Seoul&preserveInstants=false
+    url: jdbc:mysql://127.0.0.1:3306/jp?useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&connectionTimeZone=Asia/Seoul&preserveInstants=false&sessionVariables=time_zone='%2B09:00'
     username: jplanner
     password: jPlanner!0102
 

@@ -1,7 +1,7 @@
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: ${JP_TEST_DB_URL:jdbc:mysql://127.0.0.1:3306/jp_test?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&connectionTimeZone=Asia/Seoul&preserveInstants=false}
+    url: ${JP_TEST_DB_URL:jdbc:mysql://127.0.0.1:3306/jp_test?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&connectionTimeZone=Asia/Seoul&preserveInstants=false&sessionVariables=time_zone='%2B09:00'}
     username: ${JP_TEST_DB_USERNAME:jplanner}
     password: ${JP_TEST_DB_PASSWORD:jPlanner!0102}
 
