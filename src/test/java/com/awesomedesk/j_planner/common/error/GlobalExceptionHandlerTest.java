@@ -14,6 +14,7 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -50,6 +51,11 @@ class GlobalExceptionHandlerTest {
         @PostMapping("/test/body")
         String body(@RequestBody Map<String, Object> body) {
             return "ok";
+        }
+
+        @GetMapping("/test/conflict")
+        void conflict() {
+            throw new DataIntegrityViolationException("Duplicate entry '2026-09-28' for key 'diaries.uk_diaries_active_date'");
         }
 
         @GetMapping("/test/boom")
@@ -114,6 +120,17 @@ class GlobalExceptionHandlerTest {
         mvc.perform(post("/test/body").contentType(MediaType.TEXT_PLAIN).content("hello"))
             .andExpect(status().isUnsupportedMediaType())
             .andExpect(jsonPath("$.code").value("UNSUPPORTED_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("동시 저장 등으로 DB 제약에 걸림 → 409 CONFLICT, SQL 내용은 응답에 없음")
+    void dataIntegrityViolation() throws Exception {
+        mvc.perform(get("/test/conflict"))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("CONFLICT"))
+            .andExpect(jsonPath("$.detail", not(containsString("Duplicate"))))
+            .andExpect(jsonPath("$.errors", hasSize(0)));
     }
 
     @Test
