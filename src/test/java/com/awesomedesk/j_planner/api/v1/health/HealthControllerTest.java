@@ -6,26 +6,48 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Properties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.info.BuildProperties;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = HealthController.class)
-@org.springframework.context.annotation.Import(com.awesomedesk.j_planner.config.WebConfig.class)
+@org.springframework.context.annotation.Import({com.awesomedesk.j_planner.config.WebConfig.class,
+    HealthControllerTest.BuildInfoConfig.class})
 class HealthControllerTest {
+
+    @TestConfiguration
+    static class BuildInfoConfig {
+        @Bean
+        BuildProperties buildProperties() {
+            Properties p = new Properties();
+            p.setProperty("version", "1.0-SNAPSHOT");
+            p.setProperty("time", "2026-09-28T02:10:00Z");
+            p.setProperty("commit", "87b2945");
+            p.setProperty("commitTime", "2026-09-28T10:58:31+09:00");
+            return new BuildProperties(p);
+        }
+    }
 
     @Autowired
     MockMvc mvc;
 
     @Test
-    @DisplayName("GET /api/v1/health → 200 {status: UP}")
+    @DisplayName("GET /api/v1/health → 200 {status: UP, version, commit, commitTime, buildTime}")
     void health() throws Exception {
         mvc.perform(get("/api/v1/health"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("UP"))
+            .andExpect(jsonPath("$.version").value("1.0-SNAPSHOT"))
+            .andExpect(jsonPath("$.commit").value("87b2945"))
+            .andExpect(jsonPath("$.commitTime").value("2026-09-28T10:58:31"))
+            .andExpect(jsonPath("$.buildTime").value("2026-09-28T11:10:00"))
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"));
     }
 

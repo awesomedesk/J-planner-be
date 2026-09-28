@@ -8,7 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
-import org.springframework.test.json.JsonCompareMode;
 
 /**
  * US-03 (기술) FE가 BE API를 호출하고 오류를 일관되게 보여준다 — D-031
@@ -25,7 +24,9 @@ class US03ApiErrorAcceptanceTest extends AcceptanceTest {
     void successIsNotWrapped() throws Exception {
         getJson("/api/v1/health")
             .andExpect(status().isOk())
-            .andExpect(content().json("{\"status\":\"UP\"}", JsonCompareMode.STRICT));
+            .andExpect(jsonPath("$.status").value("UP"))
+            .andExpect(jsonPath("$.data").doesNotExist())
+            .andExpect(jsonPath("$.success").doesNotExist());
         getJson("/api/v1/categories")
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
