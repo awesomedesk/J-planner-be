@@ -37,6 +37,14 @@ class HealthResponseTest {
     }
 
     @Test
+    @DisplayName("빌드 시각은 다른 API처럼 초 단위까지만 (밀리초 버림)")
+    void buildTimeSeconds() {
+        Properties p = new Properties();
+        p.setProperty("time", "2026-09-28T02:27:34.456Z");
+        assertThat(HealthResponse.of(new BuildProperties(p)).buildTime()).isEqualTo(LocalDateTime.of(2026, 9, 28, 11, 27, 34));
+    }
+
+    @Test
     @DisplayName("커밋 시각은 시간대가 붙은 값(+09:00)도 읽는다")
     void commitTimeWithOffset() {
         assertThat(HealthResponse.of(build("87b2945", "2026-09-28T10:58:31+09:00")).commitTime())
