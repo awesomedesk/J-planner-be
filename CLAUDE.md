@@ -39,7 +39,8 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 ### Key Architectural Patterns
 - **Pure REST responses (D-031)**: Success returns the HTTP status + resource JSON directly (no wrapper). Errors are `application/problem+json` (RFC 9457) with extra `code` and `errors` properties. Throw `ApiException(ErrorCode, detail)` from services; `GlobalExceptionHandler` converts it. API spec: `../j-planner-product/08-api-design.md`, `08-openapi.yaml`
 - **Layered Architecture**: Controller → Service → Repository pattern with clear separation
-- **AOP Logging**: `LoggerAspect` provides cross-cutting logging functionality
+- **AOP Logging**: `LoggerAspect` logs controller (debug) / service (trace) calls with value *shapes* only — never request/response bodies (diary/memo content)
+- **Sortable**: Category/Todo/D-Day implement `Sortable`; moves use `Positions.reorder`
 - **JPA Auditing**: Enabled with `@EnableJpaAuditing` for automatic timestamp tracking
 - **Profile-based Configuration**: Separate config files for local/test/prod environments
 
@@ -51,10 +52,11 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 - **Context Path**: `/`
 
 ### Local DB
-- Reset local `jp` DB (drops everything, recreates tables, loads sample data):
-  `cd src/main/resources/sql && mysql -u jplanner -p < local-reset.sql`
-- `schema.sql` = tables + required seed rows only (also used by tests and production). `sample-data.sql` = local-only test data (dates around 2026-09-25)
-- JDBC URLs use `connectionTimeZone=Asia/Seoul&preserveInstants=false` so DATETIME values are stored/read as-is regardless of the JVM time zone
+- Tables are managed by **Flyway**: `src/main/resources/db/migration/V*.sql` (V1 = tables + required seed rows). Applied on startup; never edit an applied file — add `V2__desc.sql`. A DB with tables but no history (old local DB, local-reset) is baselined as V1
+- Reset local `jp` DB (drops everything, recreates tables from V1, loads sample data):
+  `cd src/main/resources/sql && mysql -u jplanner -p < local-reset.sql`. `sample-data.sql` = local-only test data (dates around 2026-09-25)
+- JDBC URLs use `connectionTimeZone=Asia/Seoul&preserveInstants=false` (DATETIME stored/read as-is) and `sessionVariables=time_zone='%2B09:00'` (DB-side `NOW()` is KST even if the DB server is UTC)
+- Secrets: local DB password comes from `.env` in the project root (git-ignored, imported via `spring.config.import: optional:file:.env[.properties]`), e.g. `JP_DB_PASSWORD=...`, `JP_TEST_DB_PASSWORD=...`. `tst`/`prd` read `JP_DB_URL`, `JP_DB_USERNAME`, `JP_DB_PASSWORD`, `JP_CORS_ORIGINS` from the environment
 
 - Local profile writes a request log (method, path, status, ms) to `logs/access.YYYY-MM-DD.log` — use it to check what the server actually returned
 
@@ -63,7 +65,7 @@ Work test-first (08-api-design.md 12-1): turn each acceptance criterion (AC) in 
 - **Acceptance tests** `acceptance/USxx…AcceptanceTest` extend `AcceptanceTest`: one class per story, one test per AC, `@DisplayName("ACn: <AC sentence>")`. FE-only ACs are listed as "FE 담당" in the class Javadoc. Helpers: `postJson`, `createCategory`, `createTodo`, `read(result, "$.path")` …
 - **API tests** `api/v1/<feature>/…ApiTest`: detailed rules from 08 (validation, query combinations)
 - **Unit tests** (no DB, fast): rule classes such as `TodoDateRule`, `ScheduleTimes`, `Positions`, `DateRanges`, `JsonMergePatch`, entities. Use `support/ApiExceptionAssertions` for error code / field checks. Put rules in small classes so they can be unit tested
-- API/acceptance tests extend `support/IntegrationTest`: real MySQL test DB `jp_test` (created automatically), tables from `sql/schema.sql`, data reset before each test by `src/test/resources/sql/reset.sql`. "Now" is fixed to 2026-09-25 (Fri) 09:00 KST by `FixedClockConfig`; week starts on Sunday
+- API/acceptance tests extend `support/IntegrationTest`: real MySQL test DB `jp_test` (created automatically), tables from Flyway migrations (`TestFlywayConfig` cleans and migrates `jp_test` at startup), data reset before each test by `src/test/resources/sql/reset.sql`. "Now" is fixed to 2026-09-25 (Fri) 09:00 KST by `FixedClockConfig`; week starts on Sunday
 - Needs a local MySQL on 127.0.0.1:3306. Override with `JP_TEST_DB_URL`, `JP_TEST_DB_USERNAME`, `JP_TEST_DB_PASSWORD`
 - Error shape / CORS tests use `@WebMvcTest` (`org.springframework.boot.webmvc.test.autoconfigure`)
 - If a test uncovers a case the planning docs don't decide, ask PO instead of choosing
