@@ -1,10 +1,12 @@
 -- ============================================================
--- J-planner MVP 스키마 (새로 설치용)
+-- V1: J-planner MVP 초기 테이블 + 기본 데이터 (Flyway 마이그레이션)
 -- 설계 문서: j-planner-product/07-db-design.md
 -- 대상: MySQL 8.4
--- 작성: 2026-09-24
 --
--- 공통 규칙 (기존 calendars 테이블과 동일)
+-- 적용: 서버가 켜질 때 Flyway가 아직 적용 안 된 V*.sql을 순서대로 자동 실행한다.
+--   ⚠️ 한 번 적용된 파일은 고치지 않는다. 바꿀 것이 생기면 새 파일(V2__설명.sql)을 만든다.
+--
+-- 공통 규칙
 --   - PK: BIGINT AUTO_INCREMENT, 이름은 <단수형>_id
 --   - Y/N 값: VARCHAR(1) + CHECK (JPA BooleanToStringConverter)
 --   - 코드 값: VARCHAR + CHECK (JPA @Enumerated(EnumType.STRING))
@@ -12,24 +14,7 @@
 --   - 삭제는 soft delete (deleted = 'Y')
 --   - user_id 없음 (D-003: MVP는 1인 사용)
 --   - 문자셋 utf8mb4, 정렬 utf8mb4_0900_ai_ci: 대소문자·악센트를 구분하지 않고 비교 (D-035 카테고리 이름 중복 기준)
--- 사용법: DB를 먼저 만들고 그 DB에 실행한다 (모든 테이블을 지우고 새로 만든다)
---   mysql -u jplanner -p -e "CREATE DATABASE IF NOT EXISTS jp"
---   mysql -u jplanner -p jp < schema.sql
--- BE 테스트도 이 파일로 테스트 DB(jp_test) 테이블을 만든다.
--- 로컬 DB를 통째로 새로 만들고 테스트 데이터까지 넣으려면 local-reset.sql을 쓴다 (sample-data.sql 포함).
 -- ============================================================
-
-SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `sidebar_items`;
-DROP TABLE IF EXISTS `user_settings`;
-DROP TABLE IF EXISTS `memos`;
-DROP TABLE IF EXISTS `diaries`;
-DROP TABLE IF EXISTS `ddays`;
-DROP TABLE IF EXISTS `todos`;
-DROP TABLE IF EXISTS `calendar_details`;
-DROP TABLE IF EXISTS `calendars`;
-DROP TABLE IF EXISTS `categories`;
-SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
 -- 1. 카테고리 (CAT-01~04, D-010, D-014)

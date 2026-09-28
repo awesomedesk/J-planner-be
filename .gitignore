@@ -222,3 +222,6 @@ gradle-app.setting
 ### etc ###
 logs
 .run
+
+### 로컬 비밀 값 ###
+.env

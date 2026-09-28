@@ -3,10 +3,10 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${JP_TEST_DB_URL:jdbc:mysql://127.0.0.1:3306/jp_test?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&useUnicode=true&connectionTimeZone=Asia/Seoul&preserveInstants=false&sessionVariables=time_zone='%2B09:00'}
     username: ${JP_TEST_DB_USERNAME:jplanner}
-    password: ${JP_TEST_DB_PASSWORD:jPlanner!0102}
+    password: ${JP_TEST_DB_PASSWORD}
 
   jpa:
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
@@ -14,12 +14,12 @@ spring:
     hibernate:
       ddl-auto: none
 
-  # 테스트 DB 테이블은 schema.sql로 만든다 (CHECK·생성 컬럼·UNIQUE 규칙까지 같게). 데이터는 테스트마다 sql/reset.sql로 비운다
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:sql/schema.sql
-      continue-on-error: false
+  # 테스트 DB 테이블은 운영과 같은 Flyway 마이그레이션으로 만든다. 테스트를 시작할 때 비우고(clean) 처음부터 적용한다 (TestFlywayConfig).
+  # 데이터는 테스트마다 sql/reset.sql로 비운다
+  flyway:
+    clean-disabled: false
+  config:
+    import: optional:file:.env[.properties]
   jackson:
     time-zone: Asia/Seoul
 

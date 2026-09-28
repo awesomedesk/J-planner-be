@@ -28,6 +28,9 @@ dependencies {
 
     // DB
     runtimeOnly 'com.mysql:mysql-connector-j'
+    // 테이블 만들기·바꾸기 (db/migration/V*.sql)
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-mysql'
 
     // lombok
     compileOnly 'org.projectlombok:lombok'
