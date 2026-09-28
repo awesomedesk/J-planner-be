@@ -37,6 +37,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  *   <li>{@link ApiException}: 서비스에서 던진 오류 → 그 {@link ErrorCode}</li>
  *   <li>Spring MVC 오류(필수 파라미터 없음, JSON 형식 오류, 405, 415, 404 등) → 부모 클래스가 만든 ProblemDetail에
  *       {@code code}·{@code errors}를 붙인다</li>
+ *   <li>DB 제약 위반(동시 저장 등) → 409 {@code CONFLICT}</li>
  *   <li>그 외 모든 예외 → 500 {@code INTERNAL_ERROR} (내부 정보는 응답에 넣지 않고 로그로만 남긴다)</li>
  * </ul>
  * 규칙: j-planner-product/08-api-design.md 2-6절
@@ -65,6 +66,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         jakarta.persistence.EntityNotFoundException ex, HttpServletRequest request) {
         log.debug("Entity not found: {}", ex.getMessage());
         ErrorCode code = ErrorCode.NOT_FOUND;
+        ProblemDetail problem = problem(code.getStatus(), code, code.getDefaultDetail(), List.of(), request.getRequestURI());
+        return ResponseEntity.status(code.getStatus()).body(problem);
+    }
+
+    /** DB 제약 위반(동시에 같은 이름·같은 날 일기 저장 등) → 409 CONFLICT. SQL 내용은 로그에만 */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(
+        org.springframework.dao.DataIntegrityViolationException ex, HttpServletRequest request) {
+        log.warn("Data integrity violation: {} {} - {}", request.getMethod(), request.getRequestURI(), ex.getMostSpecificCause().getMessage());
+        ErrorCode code = ErrorCode.CONFLICT;
         ProblemDetail problem = problem(code.getStatus(), code, code.getDefaultDetail(), List.of(), request.getRequestURI());
         return ResponseEntity.status(code.getStatus()).body(problem);
     }

@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -50,8 +51,12 @@ public class CategoryService {
             throw duplicated(request.name());
         }
         int sortOrder = categoryRepository.findMaxSortOrder() + 1;
-        Category saved = categoryRepository.save(new Category(request.name(), request.color(), sortOrder));
-        return CategoryResponse.of(saved, 0, 0);
+        try {
+            Category saved = categoryRepository.save(new Category(request.name(), request.color(), sortOrder));
+            return CategoryResponse.of(saved, 0, 0);
+        } catch (DataIntegrityViolationException e) {
+            throw duplicatedIfNameKey(e, request.name());
+        }
     }
 
     @Transactional
@@ -69,7 +74,11 @@ public class CategoryService {
             throw duplicated(merged.name());
         }
         category.change(merged.name(), merged.color());
-        categoryRepository.flush();
+        try {
+            categoryRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw duplicatedIfNameKey(e, merged.name());
+        }
         return get(id);
     }
 
@@ -114,6 +123,15 @@ public class CategoryService {
 
     private static ApiException duplicated(String name) {
         return new ApiException(ErrorCode.CATEGORY_NAME_DUPLICATED, "같은 이름의 카테고리가 이미 있습니다: " + name);
+    }
+
+    /**
+     * 이름 검사와 저장 사이에 다른 요청이 같은 이름을 먼저 저장한 경우 (유니크 키 uk_categories_active_name).
+     * 그 밖의 제약 오류는 그대로 올려 공통 처리(409 CONFLICT)에 맡긴다.
+     */
+    private static RuntimeException duplicatedIfNameKey(DataIntegrityViolationException e, String name) {
+        String message = String.valueOf(e.getMostSpecificCause().getMessage());
+        return message.contains("uk_categories_active_name") ? duplicated(name) : e;
     }
 
     private static Map<Long, Long> toMap(List<Object[]> rows) {
