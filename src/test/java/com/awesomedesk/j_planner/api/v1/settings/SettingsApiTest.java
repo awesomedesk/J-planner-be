@@ -41,19 +41,17 @@ class SettingsApiTest extends IntegrationTest {
         expectFieldError("{\"weekStartDay\":\"TUE\"}", "weekStartDay");
         expectFieldError("{\"timeFormat\":\"24\"}", "timeFormat");
         expectFieldError("{\"colorTheme\":\"PINK\"}", "colorTheme");
-        expectFieldError("{\"timetableStartHour\":24}", "timetableStartHour");
-        expectFieldError("{\"timetableEndHour\":0}", "timetableEndHour");
-        expectFieldError("{\"timetableEndHour\":25}", "timetableEndHour");
         expectFieldError("{\"slotMinutes\":45}", "slotMinutes");
         expectFieldError("{\"sidebarItems\":[{\"type\":\"CALENDAR\",\"visible\":true},{\"type\":\"DDAY\",\"visible\":true},{\"type\":\"DIARY\",\"visible\":true},{\"type\":\"MEMO\",\"visible\":true}]}", "sidebarItems[0].type");
     }
 
     @Test
-    @DisplayName("시간표 끝은 시작보다 뒤 (같거나 앞이면 400 timetableEndHour)")
-    void timetableOrder() throws Exception {
-        expectFieldError("{\"timetableStartHour\":10,\"timetableEndHour\":10}", "timetableEndHour");
-        expectFieldError("{\"timetableStartHour\":23,\"timetableEndHour\":22}", "timetableEndHour");
-        patchSettings("{\"timetableStartHour\":0,\"timetableEndHour\":1}").andExpect(status().isOk());
+    @DisplayName("D-046: 시간표 표시 시간은 없는 항목 — 보내도 무시되고 응답에도 없다")
+    void noTimetableHours() throws Exception {
+        patchSettings("{\"timetableStartHour\":8,\"timetableEndHour\":22,\"darkMode\":true}")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.darkMode").value(true))
+            .andExpect(jsonPath("$.timetableStartHour").doesNotExist());
     }
 
     @Test

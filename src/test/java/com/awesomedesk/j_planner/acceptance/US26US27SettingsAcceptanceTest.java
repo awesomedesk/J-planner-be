@@ -20,16 +20,16 @@ class US26US27SettingsAcceptanceTest extends AcceptanceTest {
     private static final String URL = "/api/v1/settings";
 
     @Test
-    @DisplayName("US-26 AC2: 항목과 기본값 — 주 시작 일요일, 24시간, 06~24시, 1시간 칸, 라이트, 녹색 테마 (D-024)")
+    @DisplayName("US-26 AC2: 항목과 기본값 — 주 시작 일요일, 24시간, 1시간 칸, 라이트, 녹색 테마 (D-024). 표시 시간 항목은 없음 (D-046)")
     void defaults() throws Exception {
         getJson(URL)
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.weekStartDay").value("SUN"))
             .andExpect(jsonPath("$.startView").value("MONTH"))
             .andExpect(jsonPath("$.timeFormat").value("24H"))
-            .andExpect(jsonPath("$.timetableStartHour").value(6))
-            .andExpect(jsonPath("$.timetableEndHour").value(24))
             .andExpect(jsonPath("$.slotMinutes").value(60))
+            .andExpect(jsonPath("$.timetableStartHour").doesNotExist())
+            .andExpect(jsonPath("$.timetableEndHour").doesNotExist())
             .andExpect(jsonPath("$.darkMode").value(false))
             .andExpect(jsonPath("$.colorTheme").value("GREEN"));
     }
@@ -38,16 +38,13 @@ class US26US27SettingsAcceptanceTest extends AcceptanceTest {
     @DisplayName("US-26 AC2·3: 모든 항목을 바꿀 수 있고, 바꾸면 즉시 저장된다 (SET-05)")
     void changeAll() throws Exception {
         patchJson(URL, """
-            {"weekStartDay":"MON","timeFormat":"12H","timetableStartHour":8,"timetableEndHour":22,
-             "slotMinutes":30,"darkMode":true,"colorTheme":"BROWN"}
+            {"weekStartDay":"MON","timeFormat":"12H","slotMinutes":30,"darkMode":true,"colorTheme":"BROWN"}
             """).andExpect(status().isOk())
             .andExpect(jsonPath("$.weekStartDay").value("MON"));
 
         getJson(URL)
             .andExpect(jsonPath("$.weekStartDay").value("MON"))
             .andExpect(jsonPath("$.timeFormat").value("12H"))
-            .andExpect(jsonPath("$.timetableStartHour").value(8))
-            .andExpect(jsonPath("$.timetableEndHour").value(22))
             .andExpect(jsonPath("$.slotMinutes").value(30))
             .andExpect(jsonPath("$.darkMode").value(true))
             .andExpect(jsonPath("$.colorTheme").value("BROWN"));

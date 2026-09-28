@@ -30,15 +30,6 @@ class SettingsRulesTest {
     }
 
     @Test
-    @DisplayName("시간표: 시작 < 끝")
-    void timetable() {
-        assertThatCode(() -> SettingsRules.checkTimetable(6, 24)).doesNotThrowAnyException();
-        assertThatCode(() -> SettingsRules.checkTimetable(0, 1)).doesNotThrowAnyException();
-        assertFieldError(() -> SettingsRules.checkTimetable(10, 10), "timetableEndHour");
-        assertFieldError(() -> SettingsRules.checkTimetable(23, 22), "timetableEndHour");
-    }
-
-    @Test
     @DisplayName("칸 간격: 30분 또는 60분")
     void slotMinutes() {
         assertThatCode(() -> SettingsRules.checkSlotMinutes(30)).doesNotThrowAnyException();
