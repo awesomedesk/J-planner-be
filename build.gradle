@@ -41,6 +41,29 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// /api/v1/health에 보여줄 빌드 정보 (버전·빌드 시각 + git 마지막 커밋).
+// git 저장소가 아니거나 git이 없으면 커밋 정보만 빠진다.
+def lastCommit = { String format ->
+    try {
+        def out = providers.exec {
+            commandLine 'git', 'log', '-1', "--format=${format}"
+            ignoreExitValue = true
+        }.standardOutput.asText.get().trim()
+        return out ?: null
+    } catch (Exception ignored) {
+        return null
+    }
+}
+
+springBoot {
+    buildInfo {
+        properties {
+            def git = [commit: lastCommit('%h'), commitTime: lastCommit('%cI')].findAll { it.value != null }
+            additional = git
+        }
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.compilerArgs << '-parameters'
