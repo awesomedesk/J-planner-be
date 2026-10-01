@@ -26,6 +26,9 @@ dependencies {
     // 일정 장소 좌표 (MySQL POINT)
     implementation 'org.hibernate.orm:hibernate-spatial'
 
+    // API 명세 화면 (Swagger UI). 명세는 코드에서 만들지 않고 08-openapi.yaml을 띄운다
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
+
     // DB
     runtimeOnly 'com.mysql:mysql-connector-j'
     // 테이블 만들기·바꾸기 (db/migration/V*.sql)
@@ -44,6 +47,17 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// API 명세: j-planner-product/08-openapi.yaml을 static/openapi.yaml로 복사 (Swagger UI·테스트 대조에 씀).
+// 다른 곳에 있으면 -PopenapiSpec=경로. 파일이 없으면 빌드 실패 (명세 없이 배포하지 않게)
+def openapiSpec = file(findProperty('openapiSpec') ?: '../j-planner-product/08-openapi.yaml')
+tasks.named('processResources') {
+    inputs.file(openapiSpec)
+    from(openapiSpec) {
+        into 'static'
+        rename { 'openapi.yaml' }
+    }
 }
 
 // /api/v1/health에 보여줄 빌드 정보 (버전·빌드 시각 + git 마지막 커밋).

@@ -23,6 +23,12 @@ spring:
   jackson:
     time-zone: Asia/Seoul
 
+# 메인 application.yml과 같게 (테스트 설정 파일이 메인 것을 대신하므로)
+springdoc:
+  swagger-ui:
+    url: /openapi.yaml
+    disable-swagger-default-url: true
+
 app:
   cors:
     allowed-origins: http://localhost:3000

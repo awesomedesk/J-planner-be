@@ -60,6 +60,12 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 
 - Local profile writes a request log (method, path, status, ms) to `logs/access.YYYY-MM-DD.log` — use it to check what the server actually returned
 
+### API spec / Swagger UI
+- The API contract is written first in `../j-planner-product/08-openapi.yaml` (contract-first; FE generates types from it). Code does NOT generate the spec
+- Build copies it to `static/openapi.yaml` (`processResources`; override with `-PopenapiSpec=path`). The build fails if the file is missing → check out `j-planner-product` next to this repo (CI too)
+- Swagger UI: http://localhost:8080/swagger-ui.html shows that file (springdoc, off in `prd`)
+- Every integration/acceptance test response is validated against the spec (`support/OpenApiContract`, atlassian swagger-request-validator; requests are not validated). If a test fails with `validation.response...`, fix the spec or the code — they disagree
+
 ### Testing (TDD)
 Work test-first (08-api-design.md 12-1): turn each acceptance criterion (AC) in `j-planner-product/09-backlog.md` into a failing test, commit it (`Test: … (빨강)`), then implement until green (`Feat:`), then clean up (`Refactor:`).
 - **Acceptance tests** `acceptance/USxx…AcceptanceTest` extend `AcceptanceTest`: one class per story, one test per AC, `@DisplayName("ACn: <AC sentence>")`. FE-only ACs are listed as "FE 담당" in the class Javadoc. Helpers: `postJson`, `createCategory`, `createTodo`, `read(result, "$.path")` …

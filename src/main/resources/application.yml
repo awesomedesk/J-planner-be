@@ -25,6 +25,15 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
 
+# API 명세 화면: http://localhost:8080/swagger-ui.html
+# 명세는 코드에서 만들지 않고 08-openapi.yaml(빌드 때 static/openapi.yaml로 복사)을 그대로 보여준다
+springdoc:
+  api-docs:
+    enabled: true          # swagger-ui 설정(/v3/api-docs/swagger-config)에 필요. 코드 생성 명세는 쓰지 않음
+  swagger-ui:
+    url: /openapi.yaml
+    disable-swagger-default-url: true
+
 # FE 주소 (CORS). 여러 개면 쉼표로 구분
 app:
   cors:

@@ -15,4 +15,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+# 운영에서는 명세 화면을 끈다
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 ---
