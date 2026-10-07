@@ -10,7 +10,8 @@ J-planner is a Spring Boot application designed for MBTI 'J' personality types, 
 
 - Product planning docs (requirements, decision log, open questions, implementation status) live in a **separate repository**, not here.
   - Local: `../j-planner-product`
-  - GitHub: https://github.com/awesomedesk/j-planner-product (private)
+  - GitHub: https://github.com/awesomedesk/j-planner-product (**public**, D-062)
+- **Never commit secrets or personal data to any repository** (passwords, tokens, API keys, `.env` values, real emails/names, server IPs/VPN config). Use fake examples (`example.com`, `<secret>`). Real values come from environment variables (production: GitHub Actions Secrets per environment, D-062). The admin account email for the V2 migration comes from `JP_ADMIN_EMAIL` (Flyway placeholder `admin_email`).
 - Before implementing a feature, check `../j-planner-product/02-requirements.md` (requirement IDs, status) and `03-decisions.md` (confirmed decisions).
 - Do not add planning documents to this repository.
 
