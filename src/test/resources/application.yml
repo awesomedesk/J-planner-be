@@ -18,6 +18,9 @@ spring:
   # 데이터는 테스트마다 sql/reset.sql로 비운다
   flyway:
     clean-disabled: false
+    placeholders:
+      # V2: 기존 데이터를 옮길 admin 계정 이메일 (운영은 JP_ADMIN_EMAIL)
+      admin_email: admin@test.local
   config:
     import: optional:file:.env[.properties]
   jackson:

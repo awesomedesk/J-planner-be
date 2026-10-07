@@ -92,7 +92,7 @@ class TodoApiTest extends IntegrationTest {
     @Test
     @DisplayName("주간 목표는 설정의 주 시작 요일을 따른다 (월요일이면 월~일)")
     void weekFollowsSetting() throws Exception {
-        jdbc.update("UPDATE user_settings SET week_start_day = 'MON' WHERE setting_id = 1");
+        jdbc.update("UPDATE user_settings SET week_start_day = 'MON' WHERE user_id = 1");
         create("주간", "WEEK", "2026-09-21", "2026-09-27");
         postTodo("{\"title\":\"x\",\"type\":\"WEEK\",\"startDate\":\"2026-09-20\",\"endDate\":\"2026-09-26\"}")
             .andExpect(status().isBadRequest())
@@ -198,7 +198,7 @@ class TodoApiTest extends IntegrationTest {
         long c = create("C", "PERIOD", "2026-09-20", "2026-09-30");
         patchTodo(a, "{\"completed\":true}");
         patchTodo(c, "{\"completed\":true}");
-        jdbc.update("INSERT INTO todos (category_id, title, start_date, end_date, completed, completed_at) VALUES (?, '어제 완료', '2026-09-24', '2026-09-24', 'Y', '2026-09-24 23:59:59')", defaultCategoryId());
+        jdbc.update("INSERT INTO todos (user_id, category_id, title, start_date, end_date, completed, completed_at) VALUES (1, ?, '어제 완료', '2026-09-24', '2026-09-24', 'Y', '2026-09-24 23:59:59')", defaultCategoryId());
 
         mvc.perform(get("/api/v1/todos").param("completedOn", "2026-09-25"))
             .andExpect(jsonPath("$[*].title").value(org.hamcrest.Matchers.containsInAnyOrder("A", "C")));
@@ -251,7 +251,7 @@ class TodoApiTest extends IntegrationTest {
         mvc.perform(get("/api/v1/todos").param("from", "2026-09-01").param("to", "2026-11-02"))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_QUERY"));
 
-        jdbc.update("INSERT INTO categories (name, color, sort_order) VALUES ('공부', '#2F62A8', 1)");
+        jdbc.update("INSERT INTO categories (user_id, name, color, sort_order) VALUES (1, '공부', '#2F62A8', 1)");
         long study = jdbc.queryForObject("SELECT category_id FROM categories WHERE name = '공부'", Long.class);
         postTodo("{\"title\":\"공부 Todo\",\"type\":\"DAY\",\"startDate\":\"2026-09-25\",\"endDate\":\"2026-09-25\",\"categoryId\":" + study + "}");
         create("미지정 Todo", "DAY", "2026-09-25", "2026-09-25");

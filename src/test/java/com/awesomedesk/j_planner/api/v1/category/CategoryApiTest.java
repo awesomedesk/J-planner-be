@@ -184,11 +184,11 @@ class CategoryApiTest extends IntegrationTest {
     @DisplayName("연결 개수: 삭제된 항목 제외, 완료한 Todo 포함 (D-032)")
     void counts() throws Exception {
         long id = create("공부", "#2F62A8");
-        jdbc.update("INSERT INTO calendars (category_id, title, start_date_time, end_date_time) VALUES (?, '수업', '2026-09-24 10:00:00', '2026-09-24 11:00:00')", id);
-        jdbc.update("INSERT INTO calendars (category_id, title, start_date_time, end_date_time, deleted) VALUES (?, '지운 일정', '2026-09-24 10:00:00', '2026-09-24 11:00:00', 'Y')", id);
-        jdbc.update("INSERT INTO todos (category_id, title, start_date, end_date) VALUES (?, '미완료', '2026-09-24', '2026-09-24')", id);
-        jdbc.update("INSERT INTO todos (category_id, title, start_date, end_date, completed, completed_at) VALUES (?, '완료', '2026-09-24', '2026-09-24', 'Y', NOW())", id);
-        jdbc.update("INSERT INTO todos (category_id, title, start_date, end_date, deleted) VALUES (?, '지운 Todo', '2026-09-24', '2026-09-24', 'Y')", id);
+        jdbc.update("INSERT INTO calendars (user_id, category_id, title, start_date_time, end_date_time) VALUES (1, ?, '수업', '2026-09-24 10:00:00', '2026-09-24 11:00:00')", id);
+        jdbc.update("INSERT INTO calendars (user_id, category_id, title, start_date_time, end_date_time, deleted) VALUES (1, ?, '지운 일정', '2026-09-24 10:00:00', '2026-09-24 11:00:00', 'Y')", id);
+        jdbc.update("INSERT INTO todos (user_id, category_id, title, start_date, end_date) VALUES (1, ?, '미완료', '2026-09-24', '2026-09-24')", id);
+        jdbc.update("INSERT INTO todos (user_id, category_id, title, start_date, end_date, completed, completed_at) VALUES (1, ?, '완료', '2026-09-24', '2026-09-24', 'Y', NOW())", id);
+        jdbc.update("INSERT INTO todos (user_id, category_id, title, start_date, end_date, deleted) VALUES (1, ?, '지운 Todo', '2026-09-24', '2026-09-24', 'Y')", id);
 
         mvc.perform(get("/api/v1/categories"))
             .andExpect(jsonPath("$[1].name").value("공부"))
@@ -201,8 +201,8 @@ class CategoryApiTest extends IntegrationTest {
     void deleteMovesItemsToDefault() throws Exception {
         long id = create("공부", "#2F62A8");
         long defaultId = defaultCategoryId();
-        jdbc.update("INSERT INTO calendars (category_id, title, start_date_time, end_date_time) VALUES (?, '수업', '2026-09-24 10:00:00', '2026-09-24 11:00:00')", id);
-        jdbc.update("INSERT INTO todos (category_id, title, start_date, end_date, completed, completed_at) VALUES (?, '완료', '2026-09-24', '2026-09-24', 'Y', NOW())", id);
+        jdbc.update("INSERT INTO calendars (user_id, category_id, title, start_date_time, end_date_time) VALUES (1, ?, '수업', '2026-09-24 10:00:00', '2026-09-24 11:00:00')", id);
+        jdbc.update("INSERT INTO todos (user_id, category_id, title, start_date, end_date, completed, completed_at) VALUES (1, ?, '완료', '2026-09-24', '2026-09-24', 'Y', NOW())", id);
 
         mvc.perform(delete("/api/v1/categories/" + id)).andExpect(status().isNoContent());
 
