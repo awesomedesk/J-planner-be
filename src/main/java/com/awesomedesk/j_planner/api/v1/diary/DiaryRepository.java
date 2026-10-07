@@ -5,9 +5,10 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/** 모든 조회는 회원(userId) 조건을 붙인다 (US-32) */
 public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
-    Optional<Diary> findByDate(LocalDate date);
+    Optional<Diary> findByUserIdAndDate(Long userId, LocalDate date);
 
-    List<Diary> findByDateBetweenOrderByDateAsc(LocalDate from, LocalDate to);
+    List<Diary> findByUserIdAndDateBetweenOrderByDateAsc(Long userId, LocalDate from, LocalDate to);
 }

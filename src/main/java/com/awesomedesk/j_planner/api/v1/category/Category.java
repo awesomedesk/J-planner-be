@@ -32,6 +32,10 @@ public class Category extends BaseEntity implements Sortable {
     @Column(name = "category_id")
     private Long id;
 
+    /** 회원번호 (US-32). 만든 뒤 바뀌지 않는다 */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private Long userId;
+
     @Column(nullable = false, length = 50)
     private String name;
 
@@ -46,7 +50,8 @@ public class Category extends BaseEntity implements Sortable {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
-    public Category(String name, String color, int sortOrder) {
+    public Category(Long userId, String name, String color, int sortOrder) {
+        this.userId = userId;
         this.name = name;
         this.color = color;
         this.isDefault = false;

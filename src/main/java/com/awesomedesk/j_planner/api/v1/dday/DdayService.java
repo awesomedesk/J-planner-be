@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 /**
- * D-Day (US-22, 08-api-design.md 6절)
+ * D-Day (US-22, 08-api-design.md 6절). 모두 로그인한 회원(userId)의 D-Day만 다룬다 (US-32)
  * - 목록은 사용자 순서, 남은 날·지난 날 구분 없이 한 목록, 새 D-Day는 맨 뒤 (D-029)
  * - 추가할 때 표시 옵션을 안 보내면 기준별 기본값 (D-020)
  */
@@ -30,28 +30,28 @@ public class DdayService {
     private final RequestValidator requestValidator;
     private final Clock clock;
 
-    public List<DdayResponse> list() {
+    public List<DdayResponse> list(Long userId) {
         LocalDate today = today();
-        return ddayRepository.findAllOrdered().stream().map(d -> DdayResponse.of(d, today)).toList();
+        return ddayRepository.findAllOrdered(userId).stream().map(d -> DdayResponse.of(d, today)).toList();
     }
 
-    public DdayResponse get(Long id) {
-        return DdayResponse.of(find(id), today());
+    public DdayResponse get(Long userId, Long id) {
+        return DdayResponse.of(find(userId, id), today());
     }
 
     @Transactional
-    public DdayResponse create(DdayRequest r) {
+    public DdayResponse create(Long userId, DdayRequest r) {
         CountType type = r.countType() == null ? CountType.COUNTDOWN : r.countType();
         DdayRequest.Display display = DdayDisplayRules.fill(type, r.display());
         DdayDisplayRules.check(type, display);
-        int sortOrder = ddayRepository.findMaxSortOrder() + 1;
-        Dday saved = ddayRepository.save(new Dday(new Dday.Values(r.title(), r.targetDate(), type, display), sortOrder));
+        int sortOrder = ddayRepository.findMaxSortOrder(userId) + 1;
+        Dday saved = ddayRepository.save(new Dday(userId, new Dday.Values(r.title(), r.targetDate(), type, display), sortOrder));
         return DdayResponse.of(saved, today());
     }
 
     @Transactional
-    public DdayResponse update(Long id, JsonNode patch) {
-        Dday dday = find(id);
+    public DdayResponse update(Long userId, Long id, JsonNode patch) {
+        Dday dday = find(userId, id);
         LocalDate today = today();
         DdayRequest merged = requestValidator.validate(
             jsonMergePatch.apply(DdayResponse.of(dday, today).toRequest(), patch, DdayRequest.class));
@@ -69,24 +69,24 @@ public class DdayService {
     }
 
     @Transactional
-    public void delete(Long id) {
-        ddayRepository.delete(find(id));
+    public void delete(Long userId, Long id) {
+        ddayRepository.delete(find(userId, id));
     }
 
     /** 순서 이동 (D-030). afterId 바로 뒤로 옮기고 0부터 다시 매긴다 */
     @Transactional
-    public DdayResponse move(Long id, Long afterId) {
-        Dday dday = find(id);
-        Positions.reorder(ddayRepository.findAllOrdered(), dday, afterId, 0);
+    public DdayResponse move(Long userId, Long id, Long afterId) {
+        Dday dday = find(userId, id);
+        Positions.reorder(ddayRepository.findAllOrdered(userId), dday, afterId, 0);
         ddayRepository.flush();
         return DdayResponse.of(dday, today());
     }
 
     /** 달력 표시 (US-23). 날짜 순, 같은 날은 D-Day 순서 */
-    public List<DdayMarkResponse> marks(LocalDate from, LocalDate to) {
+    public List<DdayMarkResponse> marks(Long userId, LocalDate from, LocalDate to) {
         DateRanges.check(from, to);
         List<DdayMarkResponse> result = new ArrayList<>();
-        for (Dday d : ddayRepository.findAllOrdered()) {
+        for (Dday d : ddayRepository.findAllOrdered(userId)) {
             DdayMarkCalculator.Spec spec = new DdayMarkCalculator.Spec(d.getCountType(), d.getTargetDate(), d.display(),
                 d.getCreatedAt().toLocalDate());
             for (DdayMarkCalculator.Mark m : DdayMarkCalculator.marks(spec, from, to)) {
@@ -98,8 +98,9 @@ public class DdayService {
         return result;
     }
 
-    private Dday find(Long id) {
-        return ddayRepository.findById(id).orElseThrow(() -> ApiException.notFound("D-Day를 찾을 수 없습니다: " + id));
+    /** 남의 D-Day도 '없음'(404) */
+    private Dday find(Long userId, Long id) {
+        return ddayRepository.findByIdAndUserId(id, userId).orElseThrow(() -> ApiException.notFound("D-Day를 찾을 수 없습니다: " + id));
     }
 
     private LocalDate today() {

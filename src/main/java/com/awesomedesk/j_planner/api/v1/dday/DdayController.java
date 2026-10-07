@@ -1,6 +1,7 @@
 package com.awesomedesk.j_planner.api.v1.dday;
 
 import com.awesomedesk.j_planner.common.api.PositionRequest;
+import com.awesomedesk.j_planner.common.auth.AuthUser;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -26,34 +27,34 @@ public class DdayController {
     private final DdayService ddayService;
 
     @GetMapping
-    public List<DdayResponse> list() {
-        return ddayService.list();
+    public List<DdayResponse> list(AuthUser user) {
+        return ddayService.list(user.userId());
     }
 
     @GetMapping("/{id}")
-    public DdayResponse get(@PathVariable Long id) {
-        return ddayService.get(id);
+    public DdayResponse get(AuthUser user, @PathVariable Long id) {
+        return ddayService.get(user.userId(), id);
     }
 
     @PostMapping
-    public ResponseEntity<DdayResponse> create(@Valid @RequestBody DdayRequest request) {
-        DdayResponse created = ddayService.create(request);
+    public ResponseEntity<DdayResponse> create(AuthUser user, @Valid @RequestBody DdayRequest request) {
+        DdayResponse created = ddayService.create(user.userId(), request);
         return ResponseEntity.created(URI.create("/api/v1/ddays/" + created.id())).body(created);
     }
 
     @PatchMapping("/{id}")
-    public DdayResponse update(@PathVariable Long id, @RequestBody JsonNode patch) {
-        return ddayService.update(id, patch);
+    public DdayResponse update(AuthUser user, @PathVariable Long id, @RequestBody JsonNode patch) {
+        return ddayService.update(user.userId(), id, patch);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        ddayService.delete(id);
+    public ResponseEntity<Void> delete(AuthUser user, @PathVariable Long id) {
+        ddayService.delete(user.userId(), id);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/position")
-    public DdayResponse move(@PathVariable Long id, @RequestBody PositionRequest request) {
-        return ddayService.move(id, request.afterId());
+    public DdayResponse move(AuthUser user, @PathVariable Long id, @RequestBody PositionRequest request) {
+        return ddayService.move(user.userId(), id, request.afterId());
     }
 }

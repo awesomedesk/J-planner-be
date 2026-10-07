@@ -14,7 +14,7 @@ class TodoTest {
     private static final LocalDateTime NINE = LocalDateTime.of(2026, 9, 25, 9, 0);
 
     private static Todo todo(TodoType type, LocalDate start, LocalDate end) {
-        return new Todo(new Todo.Values(1L, "할 일", type, start, end, null, null, null), 0);
+        return new Todo(1L, new Todo.Values(1L, "할 일", type, start, end, null, null, null), 0);
     }
 
     @Test

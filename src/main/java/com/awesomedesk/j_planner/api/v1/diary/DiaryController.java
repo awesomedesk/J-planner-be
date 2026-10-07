@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.diary;
 
+import com.awesomedesk.j_planner.common.auth.AuthUser;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
@@ -27,21 +28,22 @@ public class DiaryController {
 
     @GetMapping
     public List<DiaryResponse> list(
+        AuthUser user,
         @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate from,
         @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate to) {
-        return diaryService.list(from, to);
+        return diaryService.list(user.userId(), from, to);
     }
 
     @GetMapping("/{date}")
-    public DiaryResponse get(@PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date) {
-        return diaryService.get(date);
+    public DiaryResponse get(AuthUser user, @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date) {
+        return diaryService.get(user.userId(), date);
     }
 
     /** 새로 쓰면 201, 고치면 200 */
     @PutMapping("/{date}")
-    public ResponseEntity<DiaryResponse> write(@PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
+    public ResponseEntity<DiaryResponse> write(AuthUser user, @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date,
                                                @Valid @RequestBody DiaryRequest request) {
-        DiaryService.Written written = diaryService.write(date, request);
+        DiaryService.Written written = diaryService.write(user.userId(), date, request);
         if (written.created()) {
             return ResponseEntity.created(URI.create("/api/v1/diaries/" + date)).body(written.diary());
         }
@@ -49,8 +51,8 @@ public class DiaryController {
     }
 
     @DeleteMapping("/{date}")
-    public ResponseEntity<Void> delete(@PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date) {
-        diaryService.delete(date);
+    public ResponseEntity<Void> delete(AuthUser user, @PathVariable @DateTimeFormat(iso = ISO.DATE) LocalDate date) {
+        diaryService.delete(user.userId(), date);
         return ResponseEntity.noContent().build();
     }
 }

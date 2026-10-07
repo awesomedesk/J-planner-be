@@ -17,7 +17,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
- * 사용자 설정 (07-db-design.md 4-9). MVP는 한 줄(setting_id = 1)뿐이고 삭제하지 않는다.
+ * 사용자 설정 (07-db-design.md 4-9, 11-3). 회원마다 한 줄(기본 키 = user_id). 가입 때 만들어진다 (UserDataInitializer).
  * 사이드바 항목은 {@link SidebarItemStore}가 따로 읽고 쓴다.
  */
 @Getter
@@ -27,11 +27,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @EntityListeners(AuditingEntityListener.class)
 public class UserSettings {
 
-    public static final long ID = 1L;
-
+    /** 회원번호 */
     @Id
-    @Column(name = "setting_id")
-    private Long id;
+    @Column(name = "user_id")
+    private Long userId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "week_start_day", nullable = false, length = 3)

@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 /**
- * 카테고리 (US-04, 08-api-design.md 3절)
+ * 카테고리 (US-04, 08-api-design.md 3절). 모두 로그인한 회원(userId)의 카테고리만 다룬다 (US-32)
  * - 미지정: 항상 맨 위, 이름·색 변경·삭제·이동 모두 불가 — D-014, D-029, D-037
  * - 색은 고르지 않으면 null (D-037)
  * - 이름 중복 금지, 새 카테고리는 맨 뒤 — D-029, D-032
@@ -30,29 +30,29 @@ public class CategoryService {
     private final JsonMergePatch jsonMergePatch;
     private final RequestValidator requestValidator;
 
-    public List<CategoryResponse> list() {
-        Map<Long, Long> scheduleCounts = toMap(categoryRepository.countSchedulesByCategory());
-        Map<Long, Long> todoCounts = toMap(categoryRepository.countTodosByCategory());
-        return categoryRepository.findAllOrdered().stream()
+    public List<CategoryResponse> list(Long userId) {
+        Map<Long, Long> scheduleCounts = toMap(categoryRepository.countSchedulesByCategory(userId));
+        Map<Long, Long> todoCounts = toMap(categoryRepository.countTodosByCategory(userId));
+        return categoryRepository.findAllOrdered(userId).stream()
             .map(c -> CategoryResponse.of(c, scheduleCounts.getOrDefault(c.getId(), 0L), todoCounts.getOrDefault(c.getId(), 0L)))
             .toList();
     }
 
-    public CategoryResponse get(Long id) {
-        return list().stream()
+    public CategoryResponse get(Long userId, Long id) {
+        return list(userId).stream()
             .filter(c -> c.id().equals(id))
             .findFirst()
             .orElseThrow(() -> notFound(id));
     }
 
     @Transactional
-    public CategoryResponse create(CategoryRequest request) {
-        if (categoryRepository.existsByName(request.name())) {
+    public CategoryResponse create(Long userId, CategoryRequest request) {
+        if (categoryRepository.existsByUserIdAndName(userId, request.name())) {
             throw duplicated(request.name());
         }
-        int sortOrder = categoryRepository.findMaxSortOrder() + 1;
+        int sortOrder = categoryRepository.findMaxSortOrder(userId) + 1;
         try {
-            Category saved = categoryRepository.save(new Category(request.name(), request.color(), sortOrder));
+            Category saved = categoryRepository.save(new Category(userId, request.name(), request.color(), sortOrder));
             return CategoryResponse.of(saved, 0, 0);
         } catch (DataIntegrityViolationException e) {
             throw duplicatedIfNameKey(e, request.name());
@@ -60,8 +60,8 @@ public class CategoryService {
     }
 
     @Transactional
-    public CategoryResponse update(Long id, JsonNode patch) {
-        Category category = find(id);
+    public CategoryResponse update(Long userId, Long id, JsonNode patch) {
+        Category category = find(userId, id);
         CategoryRequest merged = requestValidator.validate(
             jsonMergePatch.apply(new CategoryRequest(category.getName(), category.getColor()), patch, CategoryRequest.class));
 
@@ -70,7 +70,7 @@ public class CategoryService {
         if (category.isDefault() && (nameChanged || colorChanged)) {
             throw new ApiException(ErrorCode.DEFAULT_CATEGORY_LOCKED, "'미지정' 카테고리는 이름과 색을 바꿀 수 없습니다.");
         }
-        if (nameChanged && categoryRepository.existsByNameAndIdNot(merged.name(), id)) {
+        if (nameChanged && categoryRepository.existsByUserIdAndNameAndIdNot(userId, merged.name(), id)) {
             throw duplicated(merged.name());
         }
         category.change(merged.name(), merged.color());
@@ -79,39 +79,40 @@ public class CategoryService {
         } catch (DataIntegrityViolationException e) {
             throw duplicatedIfNameKey(e, merged.name());
         }
-        return get(id);
+        return get(userId, id);
     }
 
     @Transactional
-    public void delete(Long id) {
-        Category category = find(id);
+    public void delete(Long userId, Long id) {
+        Category category = find(userId, id);
         if (category.isDefault()) {
             throw new ApiException(ErrorCode.DEFAULT_CATEGORY_LOCKED, "'미지정' 카테고리는 삭제할 수 없습니다.");
         }
-        Long defaultId = categoryRepository.getDefault().getId();
+        Long defaultId = categoryRepository.getDefault(userId).getId();
         categoryRepository.moveSchedules(id, defaultId);
         categoryRepository.moveTodos(id, defaultId);
-        categoryRepository.delete(categoryRepository.getReferenceById(id));
+        categoryRepository.delete(categoryRepository.getReferenceById(id)); // 위 UPDATE가 영속성 컨텍스트를 비워서 다시 참조
     }
 
     @Transactional
-    public CategoryResponse move(Long id, Long afterId) {
-        Category category = find(id);
+    public CategoryResponse move(Long userId, Long id, Long afterId) {
+        Category category = find(userId, id);
         if (category.isDefault()) {
             throw new ApiException(ErrorCode.DEFAULT_CATEGORY_LOCKED, "'미지정' 카테고리는 순서를 바꿀 수 없습니다. 항상 맨 위입니다.");
         }
-        Category defaultCategory = categoryRepository.getDefault();
+        Category defaultCategory = categoryRepository.getDefault(userId);
         // 미지정 뒤로 = 맨 앞 (08-api-design.md 2-5절)
         Long normalizedAfterId = defaultCategory.getId().equals(afterId) ? null : afterId;
 
-        List<Category> others = categoryRepository.findAllOrdered().stream().filter(c -> !c.isDefault()).toList();
+        List<Category> others = categoryRepository.findAllOrdered(userId).stream().filter(c -> !c.isDefault()).toList();
         Positions.reorder(others, category, normalizedAfterId, 1); // 미지정(0) 다음부터
         categoryRepository.flush();
-        return get(id);
+        return get(userId, id);
     }
 
-    private Category find(Long id) {
-        return categoryRepository.findById(id).orElseThrow(() -> notFound(id));
+    /** 남의 카테고리도 '없음'(404) — 있는지도 알려주지 않는다 (08 13-2) */
+    private Category find(Long userId, Long id) {
+        return categoryRepository.findByIdAndUserId(id, userId).orElseThrow(() -> notFound(id));
     }
 
     private static ApiException notFound(Long id) {

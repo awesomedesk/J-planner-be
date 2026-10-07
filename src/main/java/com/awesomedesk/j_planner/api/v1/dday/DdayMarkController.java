@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.dday;
 
+import com.awesomedesk.j_planner.common.auth.AuthUser;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +21,9 @@ public class DdayMarkController {
 
     @GetMapping
     public List<DdayMarkResponse> list(
+        AuthUser user,
         @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate from,
         @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate to) {
-        return ddayService.marks(from, to);
+        return ddayService.marks(user.userId(), from, to);
     }
 }

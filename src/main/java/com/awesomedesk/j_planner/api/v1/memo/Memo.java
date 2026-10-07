@@ -27,12 +27,17 @@ public class Memo extends BaseEntity {
     @Column(name = "memo_id")
     private Long id;
 
+    /** 회원번호 (US-32). 만든 뒤 바뀌지 않는다 */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private Long userId;
+
     private String title;
 
     @Column(columnDefinition = "TEXT")
     private String content;
 
-    Memo(MemoRules.Normalized v) {
+    Memo(Long userId, MemoRules.Normalized v) {
+        this.userId = userId;
         apply(v);
     }
 

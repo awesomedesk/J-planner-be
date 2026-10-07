@@ -28,13 +28,18 @@ public class Diary extends BaseEntity {
     @Column(name = "diary_id")
     private Long id;
 
+    /** 회원번호 (US-32). 만든 뒤 바뀌지 않는다 */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private Long userId;
+
     @Column(name = "diary_date", nullable = false, updatable = false)
     private LocalDate date;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    public Diary(LocalDate date, String content) {
+    public Diary(Long userId, LocalDate date, String content) {
+        this.userId = userId;
         this.date = date;
         this.content = content;
     }

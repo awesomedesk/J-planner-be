@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 /**
- * 메모 (US-25, 08-api-design.md 8절)
+ * 메모 (US-25, 08-api-design.md 8절). 모두 로그인한 회원(userId)의 메모만 다룬다 (US-32)
  * - 목록은 최근 수정 순 (D-029), 저장 버튼으로만 저장·검색 없음 (D-030)
  * - 빈 메모는 저장하지 않는다 (D-032)
  */
@@ -23,23 +23,23 @@ public class MemoService {
     private final JsonMergePatch jsonMergePatch;
     private final RequestValidator requestValidator;
 
-    public List<MemoResponse> list() {
-        return memoRepository.findAllByOrderByUpdatedAtDescIdDesc().stream().map(MemoResponse::of).toList();
+    public List<MemoResponse> list(Long userId) {
+        return memoRepository.findAllByUserIdOrderByUpdatedAtDescIdDesc(userId).stream().map(MemoResponse::of).toList();
     }
 
-    public MemoResponse get(Long id) {
-        return MemoResponse.of(find(id));
+    public MemoResponse get(Long userId, Long id) {
+        return MemoResponse.of(find(userId, id));
     }
 
     @Transactional
-    public MemoResponse create(MemoRequest r) {
-        Memo saved = memoRepository.saveAndFlush(new Memo(MemoRules.normalize(r.title(), r.content())));
+    public MemoResponse create(Long userId, MemoRequest r) {
+        Memo saved = memoRepository.saveAndFlush(new Memo(userId, MemoRules.normalize(r.title(), r.content())));
         return MemoResponse.of(saved);
     }
 
     @Transactional
-    public MemoResponse update(Long id, JsonNode patch) {
-        Memo memo = find(id);
+    public MemoResponse update(Long userId, Long id, JsonNode patch) {
+        Memo memo = find(userId, id);
         MemoRequest merged = requestValidator.validate(
             jsonMergePatch.apply(MemoResponse.of(memo).toRequest(), patch, MemoRequest.class));
         memo.apply(MemoRules.normalize(merged.title(), merged.content()));
@@ -48,11 +48,12 @@ public class MemoService {
     }
 
     @Transactional
-    public void delete(Long id) {
-        memoRepository.delete(find(id));
+    public void delete(Long userId, Long id) {
+        memoRepository.delete(find(userId, id));
     }
 
-    private Memo find(Long id) {
-        return memoRepository.findById(id).orElseThrow(() -> ApiException.notFound("메모를 찾을 수 없습니다: " + id));
+    /** 남의 메모도 '없음'(404) */
+    private Memo find(Long userId, Long id) {
+        return memoRepository.findByIdAndUserId(id, userId).orElseThrow(() -> ApiException.notFound("메모를 찾을 수 없습니다: " + id));
     }
 }

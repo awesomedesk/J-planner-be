@@ -1,6 +1,7 @@
 package com.awesomedesk.j_planner.api.v1.todo;
 
 import com.awesomedesk.j_planner.common.api.PositionRequest;
+import com.awesomedesk.j_planner.common.auth.AuthUser;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
@@ -32,6 +33,7 @@ public class TodoController {
     /** 조회 조건은 date / from+to(+scheduled) / completedOn 중 하나만 */
     @GetMapping
     public List<TodoResponse> list(
+        AuthUser user,
         @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate date,
         @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate from,
         @RequestParam(required = false) @DateTimeFormat(iso = ISO.DATE) LocalDate to,
@@ -40,36 +42,36 @@ public class TodoController {
         @RequestParam(name = "categoryId", required = false) List<Long> categoryIds) {
 
         return switch (TodoQuery.of(date, from, to, scheduled, completedOn)) {
-            case TodoQuery.Box q -> todoService.box(q.date(), categoryIds);
-            case TodoQuery.Range q -> todoService.range(q.from(), q.to(), q.scheduled(), categoryIds);
-            case TodoQuery.CompletedOn q -> todoService.completedOn(q.date(), categoryIds);
+            case TodoQuery.Box q -> todoService.box(user.userId(), q.date(), categoryIds);
+            case TodoQuery.Range q -> todoService.range(user.userId(), q.from(), q.to(), q.scheduled(), categoryIds);
+            case TodoQuery.CompletedOn q -> todoService.completedOn(user.userId(), q.date(), categoryIds);
         };
     }
 
     @GetMapping("/{id}")
-    public TodoResponse get(@PathVariable Long id) {
-        return todoService.get(id);
+    public TodoResponse get(AuthUser user, @PathVariable Long id) {
+        return todoService.get(user.userId(), id);
     }
 
     @PostMapping
-    public ResponseEntity<TodoResponse> create(@Valid @RequestBody TodoRequest request) {
-        TodoResponse created = todoService.create(request);
+    public ResponseEntity<TodoResponse> create(AuthUser user, @Valid @RequestBody TodoRequest request) {
+        TodoResponse created = todoService.create(user.userId(), request);
         return ResponseEntity.created(URI.create("/api/v1/todos/" + created.id())).body(created);
     }
 
     @PatchMapping("/{id}")
-    public TodoResponse update(@PathVariable Long id, @RequestBody JsonNode patch) {
-        return todoService.update(id, patch);
+    public TodoResponse update(AuthUser user, @PathVariable Long id, @RequestBody JsonNode patch) {
+        return todoService.update(user.userId(), id, patch);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        todoService.delete(id);
+    public ResponseEntity<Void> delete(AuthUser user, @PathVariable Long id) {
+        todoService.delete(user.userId(), id);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/position")
-    public TodoResponse move(@PathVariable Long id, @RequestBody PositionRequest request) {
-        return todoService.move(id, request.afterId());
+    public TodoResponse move(AuthUser user, @PathVariable Long id, @RequestBody PositionRequest request) {
+        return todoService.move(user.userId(), id, request.afterId());
     }
 }

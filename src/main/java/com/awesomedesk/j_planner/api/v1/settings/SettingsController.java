@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.settings;
 
+import com.awesomedesk.j_planner.common.auth.AuthUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -17,12 +18,12 @@ public class SettingsController {
     private final SettingsService settingsService;
 
     @GetMapping
-    public SettingsResponse get() {
-        return settingsService.get();
+    public SettingsResponse get(AuthUser user) {
+        return settingsService.get(user.userId());
     }
 
     @PatchMapping
-    public SettingsResponse update(@RequestBody JsonNode patch) {
-        return settingsService.update(patch);
+    public SettingsResponse update(AuthUser user, @RequestBody JsonNode patch) {
+        return settingsService.update(user.userId(), patch);
     }
 }

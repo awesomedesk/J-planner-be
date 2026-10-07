@@ -37,6 +37,10 @@ public class Todo extends BaseEntity implements Sortable {
     @Column(name = "todo_id")
     private Long id;
 
+    /** 회원번호 (US-32). 만든 뒤 바뀌지 않는다 */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private Long userId;
+
     @Column(name = "category_id", nullable = false)
     private Long categoryId;
 
@@ -74,7 +78,8 @@ public class Todo extends BaseEntity implements Sortable {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
-    public Todo(Values v, int sortOrder) {
+    public Todo(Long userId, Values v, int sortOrder) {
+        this.userId = userId;
         apply(v);
         this.completed = false;
         this.sortOrder = sortOrder;

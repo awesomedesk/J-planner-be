@@ -315,7 +315,7 @@ class US32UserDataAcceptanceTest extends AcceptanceTest {
         long todo = createTodo("{\"title\":\"보고서\",\"type\":\"DAY\",\"startDate\":\"" + TODAY + "\",\"endDate\":\"" + TODAY
             + "\",\"categoryId\":" + category + "}");
         long dday = idOf(postJson("/api/v1/ddays", "{\"title\":\"시험\",\"targetDate\":\"2026-09-26\",\"countType\":\"COUNTDOWN\","
-            + "\"display\":{\"lastDays\":7}}"));
+            + "\"display\":{\"lastDays\":{\"enabled\":true,\"days\":7}}}"));
         long memo = idOf(postJson("/api/v1/memos", "{\"title\":\"장보기\",\"content\":\"우유\"}"));
         putJson("/api/v1/diaries/" + TODAY, "{\"content\":\"admin 일기\"}").andExpect(status().isCreated());
         return new AdminData(category, schedule, todo, dday, memo);

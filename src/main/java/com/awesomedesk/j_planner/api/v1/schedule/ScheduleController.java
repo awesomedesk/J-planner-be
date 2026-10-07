@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.schedule;
 
+import com.awesomedesk.j_planner.common.auth.AuthUser;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
@@ -29,31 +30,32 @@ public class ScheduleController {
 
     @GetMapping
     public List<ScheduleResponse> list(
+        AuthUser user,
         @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate from,
         @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate to,
         @RequestParam(name = "categoryId", required = false) List<Long> categoryIds) {
-        return scheduleService.list(from, to, categoryIds);
+        return scheduleService.list(user.userId(), from, to, categoryIds);
     }
 
     @GetMapping("/{id}")
-    public ScheduleResponse get(@PathVariable Long id) {
-        return scheduleService.get(id);
+    public ScheduleResponse get(AuthUser user, @PathVariable Long id) {
+        return scheduleService.get(user.userId(), id);
     }
 
     @PostMapping
-    public ResponseEntity<ScheduleResponse> create(@Valid @RequestBody ScheduleRequest request) {
-        ScheduleResponse created = scheduleService.create(request);
+    public ResponseEntity<ScheduleResponse> create(AuthUser user, @Valid @RequestBody ScheduleRequest request) {
+        ScheduleResponse created = scheduleService.create(user.userId(), request);
         return ResponseEntity.created(URI.create("/api/v1/schedules/" + created.id())).body(created);
     }
 
     @PatchMapping("/{id}")
-    public ScheduleResponse update(@PathVariable Long id, @RequestBody JsonNode patch) {
-        return scheduleService.update(id, patch);
+    public ScheduleResponse update(AuthUser user, @PathVariable Long id, @RequestBody JsonNode patch) {
+        return scheduleService.update(user.userId(), id, patch);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        scheduleService.delete(id);
+    public ResponseEntity<Void> delete(AuthUser user, @PathVariable Long id) {
+        scheduleService.delete(user.userId(), id);
         return ResponseEntity.noContent().build();
     }
 }

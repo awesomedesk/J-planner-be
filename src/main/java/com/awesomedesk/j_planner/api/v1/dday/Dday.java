@@ -35,6 +35,10 @@ public class Dday extends BaseEntity implements Sortable {
     @Column(name = "dday_id")
     private Long id;
 
+    /** 회원번호 (US-32). 만든 뒤 바뀌지 않는다 */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private Long userId;
+
     @Column(nullable = false)
     private String title;
 
@@ -70,7 +74,8 @@ public class Dday extends BaseEntity implements Sortable {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
-    public Dday(Values v, int sortOrder) {
+    public Dday(Long userId, Values v, int sortOrder) {
+        this.userId = userId;
         apply(v);
         this.sortOrder = sortOrder;
     }

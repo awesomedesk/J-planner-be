@@ -26,4 +26,9 @@ spring:
         format_sql: true
     hibernate:
       ddl-auto: none
+
+# 로그인 API(US-34) 전까지 로컬에서는 이 회원(admin)으로 로그인한 것으로 본다 (08-api-design.md 13-2, DevLoginFilter)
+app:
+  auth:
+    dev-user-email: ${JP_ADMIN_EMAIL:}
 ---

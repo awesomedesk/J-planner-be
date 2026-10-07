@@ -1,6 +1,7 @@
 package com.awesomedesk.j_planner.api.v1.category;
 
 import com.awesomedesk.j_planner.common.api.PositionRequest;
+import com.awesomedesk.j_planner.common.auth.AuthUser;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -26,29 +27,29 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping
-    public List<CategoryResponse> list() {
-        return categoryService.list();
+    public List<CategoryResponse> list(AuthUser user) {
+        return categoryService.list(user.userId());
     }
 
     @PostMapping
-    public ResponseEntity<CategoryResponse> create(@Valid @RequestBody CategoryRequest request) {
-        CategoryResponse created = categoryService.create(request);
+    public ResponseEntity<CategoryResponse> create(AuthUser user, @Valid @RequestBody CategoryRequest request) {
+        CategoryResponse created = categoryService.create(user.userId(), request);
         return ResponseEntity.created(URI.create("/api/v1/categories/" + created.id())).body(created);
     }
 
     @PatchMapping("/{id}")
-    public CategoryResponse update(@PathVariable Long id, @RequestBody JsonNode patch) {
-        return categoryService.update(id, patch);
+    public CategoryResponse update(AuthUser user, @PathVariable Long id, @RequestBody JsonNode patch) {
+        return categoryService.update(user.userId(), id, patch);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        categoryService.delete(id);
+    public ResponseEntity<Void> delete(AuthUser user, @PathVariable Long id) {
+        categoryService.delete(user.userId(), id);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/position")
-    public CategoryResponse move(@PathVariable Long id, @RequestBody PositionRequest request) {
-        return categoryService.move(id, request.afterId());
+    public CategoryResponse move(AuthUser user, @PathVariable Long id, @RequestBody PositionRequest request) {
+        return categoryService.move(user.userId(), id, request.afterId());
     }
 }

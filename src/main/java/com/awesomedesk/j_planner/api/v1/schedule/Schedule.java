@@ -42,6 +42,10 @@ public class Schedule extends BaseEntity {
     @Column(name = "calendar_id")
     private Long id;
 
+    /** 회원번호 (US-32). 만든 뒤 바뀌지 않는다 */
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private Long userId;
+
     @Column(name = "category_id", nullable = false)
     private Long categoryId;
 
@@ -75,7 +79,8 @@ public class Schedule extends BaseEntity {
     @Column(table = "calendar_details", name = "url", length = 2048)
     private String url;
 
-    public Schedule(Values v) {
+    public Schedule(Long userId, Values v) {
+        this.userId = userId;
         apply(v);
     }
 

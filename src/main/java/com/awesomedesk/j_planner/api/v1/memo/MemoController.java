@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.memo;
 
+import com.awesomedesk.j_planner.common.auth.AuthUser;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -24,29 +25,29 @@ public class MemoController {
     private final MemoService memoService;
 
     @GetMapping
-    public List<MemoResponse> list() {
-        return memoService.list();
+    public List<MemoResponse> list(AuthUser user) {
+        return memoService.list(user.userId());
     }
 
     @GetMapping("/{id}")
-    public MemoResponse get(@PathVariable Long id) {
-        return memoService.get(id);
+    public MemoResponse get(AuthUser user, @PathVariable Long id) {
+        return memoService.get(user.userId(), id);
     }
 
     @PostMapping
-    public ResponseEntity<MemoResponse> create(@Valid @RequestBody MemoRequest request) {
-        MemoResponse created = memoService.create(request);
+    public ResponseEntity<MemoResponse> create(AuthUser user, @Valid @RequestBody MemoRequest request) {
+        MemoResponse created = memoService.create(user.userId(), request);
         return ResponseEntity.created(URI.create("/api/v1/memos/" + created.id())).body(created);
     }
 
     @PatchMapping("/{id}")
-    public MemoResponse update(@PathVariable Long id, @RequestBody JsonNode patch) {
-        return memoService.update(id, patch);
+    public MemoResponse update(AuthUser user, @PathVariable Long id, @RequestBody JsonNode patch) {
+        return memoService.update(user.userId(), id, patch);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        memoService.delete(id);
+    public ResponseEntity<Void> delete(AuthUser user, @PathVariable Long id) {
+        memoService.delete(user.userId(), id);
         return ResponseEntity.noContent().build();
     }
 }
