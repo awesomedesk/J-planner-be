@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,7 +72,7 @@ public class TodoService {
     @Transactional
     public TodoResponse create(Long userId, TodoRequest request) {
         int sortOrder = todoRepository.findMaxSortOrder(userId) + 1;
-        Todo saved = todoRepository.save(new Todo(userId, toValues(userId, request, true), sortOrder));
+        Todo saved = todoRepository.save(new Todo(userId, toValues(userId, request, true, true), sortOrder));
         return TodoResponse.of(saved, today());
     }
 
@@ -84,7 +85,11 @@ public class TodoService {
         // 종류·날짜를 바꿀 때만 날짜 규칙을 다시 검사한다 (D-042: 설정을 바꾼 뒤에도 예전 주간 Todo는 고칠 수 있게)
         boolean datesChanged = todo.getType() != merged.type()
             || !todo.getStartDate().equals(merged.startDate()) || !todo.getEndDate().equals(merged.endDate());
-        todo.apply(toValues(userId, merged, datesChanged));
+        // 시간도 바꿀 때만 검사한다 (예전에 저장된 자정 넘김 Todo도 제목·완료는 고칠 수 있게)
+        TodoRequest.Time t = merged.time();
+        boolean timeChanged = !Objects.equals(todo.getStartTime(), t == null ? null : t.start().withSecond(0).withNano(0))
+            || !Objects.equals(todo.getDurationMinutes(), t == null ? null : t.durationMinutes());
+        todo.apply(toValues(userId, merged, datesChanged, timeChanged));
         if (merged.completed() == null) {
             throw ApiException.validation("completed", "완료 여부는 true 또는 false입니다.");
         }
@@ -135,8 +140,9 @@ public class TodoService {
     /**
      * 검증(종류별 날짜 규칙·카테고리)과 정리를 마친 값
      * @param checkDates 종류별 날짜 규칙을 검사할지 (새로 만들 때, 또는 종류·날짜를 바꿀 때)
+     * @param checkTime  시간이 자정 안에 끝나는지 검사할지 (새로 만들 때, 또는 시간을 바꿀 때)
      */
-    private Todo.Values toValues(Long userId, TodoRequest r, boolean checkDates) {
+    private Todo.Values toValues(Long userId, TodoRequest r, boolean checkDates, boolean checkTime) {
         LocalDate start = r.startDate();
         LocalDate end = r.endDate();
         if (checkDates) {
@@ -150,6 +156,9 @@ public class TodoService {
         if (r.time() != null) {
             startTime = r.time().start().withSecond(0).withNano(0);
             duration = r.time().durationMinutes();
+            if (checkTime) {
+                TodoTimeRule.check(startTime, duration);
+            }
         }
 
         Long categoryId = r.categoryId();
