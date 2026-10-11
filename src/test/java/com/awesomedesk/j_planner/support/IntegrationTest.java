@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.support;
 
+import com.awesomedesk.j_planner.api.v1.auth.PasswordCredentials;
 import com.awesomedesk.j_planner.api.v1.user.UserDataInitializer;
 import com.awesomedesk.j_planner.common.auth.AuthUser;
 import org.junit.jupiter.api.BeforeEach;
@@ -7,7 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -18,6 +21,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
  * 모든 응답은 명세(08-openapi.yaml)와 자동 대조한다 (OpenApiContract).
  * "지금"은 FixedClockConfig의 2026-09-25 09:00 (한국 시간)으로 고정한다.
  * 요청은 기본으로 admin 계정(user_id = 1)이 로그인한 것으로 보낸다 (LoginUserConfig, US-32).
+ * Redis(세션·요청 제한, US-34)도 테스트마다 비운다. 로컬 Redis 127.0.0.1:6379가 있어야 한다.
  * 로컬 MySQL에 jp_test를 만들 수 있는 계정이 있어야 한다 (JP_TEST_DB_URL / USERNAME / PASSWORD로 바꿀 수 있음).
  */
 @SpringBootTest
@@ -38,11 +42,26 @@ public abstract class IntegrationTest {
     @Autowired
     private UserDataInitializer userDataInitializer;
 
+    @Autowired
+    private PasswordCredentials passwordCredentials;
+
+    @Autowired
+    protected StringRedisTemplate redis;
+
     protected static final long ADMIN_ID = LoginUserConfig.ADMIN_ID;
 
     @BeforeEach
-    void resetClock() {
+    void resetClockAndRedis() {
         clock.reset();
+        redis.execute((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+            connection.serverCommands().flushDb();
+            return null;
+        });
+    }
+
+    /** 회원의 비밀번호를 정한다 (가입·비밀번호 변경 API 전이라 직접) */
+    protected void setPassword(long userId, String rawPassword) {
+        passwordCredentials.set(userId, rawPassword);
     }
 
     protected long defaultCategoryId() {
@@ -64,17 +83,11 @@ public abstract class IntegrationTest {
 
     /** 이 요청을 그 회원이 로그인한 것으로 보낸다 */
     protected static RequestPostProcessor as(long userId) {
-        return request -> {
-            request.setUserPrincipal(new AuthUser(userId));
-            return request;
-        };
+        return SecurityMockMvcRequestPostProcessors.authentication(new AuthUser(userId).toAuthentication());
     }
 
     /** 이 요청을 로그인 없이 보낸다 */
     protected static RequestPostProcessor anonymous() {
-        return request -> {
-            request.setUserPrincipal(null);
-            return request;
-        };
+        return SecurityMockMvcRequestPostProcessors.anonymous();
     }
 }
