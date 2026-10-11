@@ -100,6 +100,28 @@ class TodoApiTest extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("US-12: 시간은 그날 자정까지 — 23:00 + 120분(자정 넘김)은 400, 23:00 + 60분(종료 00:00)은 된다")
+    void timeMustEndByMidnight() throws Exception {
+        postTodo("{\"title\":\"x\",\"type\":\"DAY\",\"startDate\":\"2026-09-25\",\"endDate\":\"2026-09-25\",\"time\":{\"start\":\"23:00\",\"durationMinutes\":120}}")
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors[0].field").value("time.durationMinutes"));
+        String body = postTodo("{\"title\":\"x\",\"type\":\"DAY\",\"startDate\":\"2026-09-25\",\"endDate\":\"2026-09-25\",\"time\":{\"start\":\"23:00\",\"durationMinutes\":60}}")
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = Long.parseLong(body.replaceAll("^\\{\"id\":(\\d+).*", "$1"));
+        patchTodo(id, "{\"time\":{\"durationMinutes\":61}}")
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors[0].field").value("time.durationMinutes"));
+    }
+
+    @Test
+    @DisplayName("US-12: 예전에 저장된 자정 넘김 Todo도 시간을 안 바꾸면 고칠 수 있다 (제목·완료)")
+    void oldCrossingTodoStillEditable() throws Exception {
+        jdbc.update("INSERT INTO todos (todo_id, user_id, category_id, title, start_date, end_date, start_time, duration_minutes) "
+            + "VALUES (950, 1, ?, '예전 것', '2026-09-25', '2026-09-25', '23:00:00', 120)", defaultCategoryId());
+        patchTodo(950, "{\"title\":\"고침\",\"completed\":true}").andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("입력값 오류: 필수값·시간 길이·색·없는 카테고리·시간 형식")
     void createInvalid() throws Exception {
         postTodo("{\"title\":\"\",\"startDate\":\"2026-09-25\",\"endDate\":\"2026-09-25\",\"color\":\"red\"}")
