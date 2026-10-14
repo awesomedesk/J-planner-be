@@ -15,7 +15,13 @@ MBTI 유형 중 'J' 유형을 갖고 있는 사람들이 사용하고 싶은 플
 
 ### 준비물
 - Java 25
-- MySQL 8.4 — `127.0.0.1:3306`, 서비스 DB `jp` / 테스트 DB `jp_test`(자동 생성)
+- MySQL 8.4 — `127.0.0.1:3306`, 서비스 DB `jp` / 테스트 DB `jp_test`·`jp_test_migration`(자동 생성)
+  - `jplanner` 계정에 두 테스트 DB 권한이 있어야 한다. 처음 한 번 root로:
+    ```sql
+    GRANT ALL PRIVILEGES ON jp_test.* TO 'jplanner'@'%';
+    GRANT ALL PRIVILEGES ON jp_test_migration.* TO 'jplanner'@'%';
+    ```
+    (`jp_test_migration`은 US-32 마이그레이션 테스트가 V1부터 다시 쌓아 보는 빈 DB)
 - Redis 8.2 — `127.0.0.1:6379`, **Docker로 켠다** (아래)
 - 프로젝트 루트의 `.env` (git에 올리지 않음): `JP_DB_PASSWORD`, `JP_TEST_DB_PASSWORD`, `JP_ADMIN_EMAIL`, `JP_DEV_ACCOUNTS` 등 — 자세한 것은 `CLAUDE.md`의 Local DB
 - 기획 저장소 `j-planner-product`가 이 저장소 옆에 있어야 빌드된다 (`08-openapi.yaml`)
