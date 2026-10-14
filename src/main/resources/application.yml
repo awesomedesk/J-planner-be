@@ -40,4 +40,4 @@ springdoc:
 # FE 주소 (CORS). 여러 개면 쉼표로 구분
 app:
   cors:
-    allowed-origins: ${JP_CORS_ORIGINS:http://localhost:3000}
+    allowed-origins: ${JP_CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
