@@ -58,7 +58,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             log.debug("API error: {} - {}", code, ex.getMessage());
         }
         ProblemDetail problem = problem(code.getStatus(), code, ex.getMessage(), ex.getErrors(), request.getRequestURI());
-        return ResponseEntity.status(code.getStatus()).body(problem);
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(code.getStatus());
+        if (ex instanceof TooManyRequestsException tooMany) {
+            response.header(HttpHeaders.RETRY_AFTER, String.valueOf(tooMany.getRetryAfterSeconds()));
+        }
+        return response.body(problem);
     }
 
     @ExceptionHandler(jakarta.persistence.EntityNotFoundException.class)

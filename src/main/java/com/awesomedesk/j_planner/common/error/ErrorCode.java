@@ -16,6 +16,12 @@ public enum ErrorCode {
     INVALID_QUERY(HttpStatus.BAD_REQUEST, "조회 조건을 확인하세요."),
     /** 로그인 안 함 / 세션 만료 (08-api-design.md 13-6) */
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."),
+    /** CSRF 토큰 없음·틀림 (08 13-1) */
+    CSRF_INVALID(HttpStatus.FORBIDDEN, "보안 토큰이 없거나 맞지 않습니다. 새로고침한 뒤 다시 시도하세요."),
+    /** 운영자가 정지한 계정. 비밀번호가 맞을 때만 알려준다 (08 13-3) */
+    ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN, "이용이 제한된 계정이에요."),
+    /** 요청 횟수 제한 (08 13-7). Retry-After 헤더(초)와 함께 */
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도하세요."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 대상을 찾을 수 없습니다."),
     CATEGORY_NAME_DUPLICATED(HttpStatus.CONFLICT, "같은 이름의 카테고리가 이미 있습니다."),
     DEFAULT_CATEGORY_LOCKED(HttpStatus.CONFLICT, "'미지정' 카테고리는 이름·색을 바꾸거나 삭제·이동할 수 없습니다."),

@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.health;
 
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -17,6 +18,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 
+// Spring Security 필터는 빼고 컨트롤러·오류 처리만 본다 (로그인·CSRF는 US34LoginAcceptanceTest)
+@AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(controllers = HealthController.class)
 @org.springframework.context.annotation.Import({com.awesomedesk.j_planner.config.WebConfig.class,
     HealthControllerTest.BuildInfoConfig.class})

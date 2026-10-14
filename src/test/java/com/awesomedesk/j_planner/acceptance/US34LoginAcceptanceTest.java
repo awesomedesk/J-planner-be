@@ -137,9 +137,9 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
     }
 
     @Test
-    @DisplayName("AC1: 정지된 계정은 비밀번호가 맞을 때만 403 ACCOUNT_SUSPENDED, 틀리면 같은 401")
+    @DisplayName("AC1: 정지된 계정(suspended_at, D-069)은 비밀번호가 맞을 때만 403 ACCOUNT_SUSPENDED, 틀리면 같은 401")
     void suspendedAccount() throws Exception {
-        jdbc.update("UPDATE users SET status = 'SUSPENDED' WHERE user_id = ?", other);
+        jdbc.update("UPDATE users SET suspended_at = NOW() WHERE user_id = ?", other);
         Browser b = new Browser("198.51.100.5").withCsrf();
         b.login(OTHER_EMAIL, "wrong-password-0000").andExpect(status().isUnauthorized()).andExpect(jsonPath("$.detail").value(FAIL));
         b.login(OTHER_EMAIL, OTHER_PASSWORD)
@@ -326,19 +326,19 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
         loggedIn(ADMIN_EMAIL, ADMIN_PASSWORD, "198.51.100.22");
         Set<String> keys = redis.keys("jp:session:sessions:*");
         String sessionKey = keys.stream().filter(k -> !k.contains(":expires:")).findFirst().orElseThrow();
-        assertThat(redis.opsForHash().get(sessionKey, "maxInactiveInterval"))
-            .isEqualTo((int) Duration.ofDays(14).toSeconds());
+        // Spring Session은 키 TTL = 미사용 만료 + 5분(만료 처리 여유)
+        assertThat(redis.getExpire(sessionKey)).isBetween(Duration.ofDays(14).toSeconds(), Duration.ofDays(14).plusMinutes(10).toSeconds());
     }
 
     @Test
     @DisplayName("13-1·정지: 로그인한 채로 정지되면 1분 안에 그 세션이 끊긴다 (정지를 풀어도 그 세션은 다시 로그인해야 함)")
     void suspendedWhileLoggedIn() throws Exception {
         Browser b = loggedIn(OTHER_EMAIL, OTHER_PASSWORD, "198.51.100.23");
-        jdbc.update("UPDATE users SET status = 'SUSPENDED' WHERE user_id = ?", other);
+        jdbc.update("UPDATE users SET suspended_at = NOW() WHERE user_id = ?", other);
         b.get(ME).andExpect(status().isOk()); // 1분마다 확인
         clock.advance(Duration.ofSeconds(61));
         b.get(ME).andExpect(status().isUnauthorized());
-        jdbc.update("UPDATE users SET status = 'ACTIVE' WHERE user_id = ?", other);
+        jdbc.update("UPDATE users SET suspended_at = NULL WHERE user_id = ?", other);
         b.get(ME).andExpect(status().isUnauthorized());
     }
 
@@ -369,7 +369,7 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
         }
 
         Browser withCsrf() throws Exception {
-            MockHttpServletResponse response = web.perform(get(CSRF).with(r -> {
+            MockHttpServletResponse response = web.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(CSRF).with(r -> {
                 r.setRemoteAddr(ip);
                 return r;
             })).andExpect(status().isNoContent()).andReturn().getResponse();

@@ -2,6 +2,7 @@
 # 테스트 서버: 접속 정보는 모두 환경 변수로 받는다 (파일·git에 비밀 값을 두지 않는다)
 #   JP_DB_URL      예) jdbc:mysql://db-host:3306/jp?useSSL=true&useUnicode=true&connectionTimeZone=Asia/Seoul&preserveInstants=false&sessionVariables=time_zone='%2B09:00'
 #   JP_DB_USERNAME, JP_DB_PASSWORD
+#   JP_REDIS_HOST, JP_REDIS_PORT, JP_REDIS_USERNAME, JP_REDIS_PASSWORD (US-34 세션)
 #   JP_CORS_ORIGINS  FE 주소 (쉼표로 여러 개)
 spring:
   config:
@@ -12,6 +13,13 @@ spring:
     url: ${JP_DB_URL}
     username: ${JP_DB_USERNAME}
     password: ${JP_DB_PASSWORD}
+  # 세션·요청 제한 (US-34). Redis 접속 정보도 환경 변수로
+  data:
+    redis:
+      host: ${JP_REDIS_HOST}
+      port: ${JP_REDIS_PORT:6379}
+      username: ${JP_REDIS_USERNAME:}
+      password: ${JP_REDIS_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: none

@@ -30,13 +30,14 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 - `com.awesomedesk.j_planner` - Root package
   - `api/v1/<feature>/` - One folder per API resource (Controller, Service, Repository, entity, `…Request`/`…Response` records). Implemented: `health`, `category`, `schedule`, `todo`, `dday`, `diary`, `memo`, `settings`, `user` (`UserDataInitializer`: new member's default rows)
   - `common/`
-    - `auth/` - `AuthUser` (logged-in member, `Principal`), `LoginRequiredInterceptor` (401 `UNAUTHENTICATED` on `/api/**` except `/api/v1/health`), `AuthUserArgumentResolver`, `DevLoginFilter` (local profile only, until US-34)
+    - `auth/` - `AuthUser` (logged-in member, Spring Security principal; name = user_id), `AuthUserArgumentResolver`, `DeviceSessions` (login session = device: new session id on login, max 10 devices, log out others), `SessionPolicyInterceptor` (30-day max, re-check suspension every minute)
+    - `audit/` - `AuditLogger` → `audit_logs` (no email/password/body in it). `log/EmailMasker` for logs
     - `api/` - `JsonMergePatch` (PATCH per RFC 7396), `RequestValidator`, `DateRanges` (62-day query limit), `Positions` (move/reorder), `PositionRequest`
     - `error/` - Error handling: `ErrorCode`, `ApiException`, `GlobalExceptionHandler` (RFC 9457 Problem Details)
     - `domain/` - `BaseEntity` (created/updated/deleted columns, soft delete)
     - `aop/logger/` - AOP-based logging
     - `converter/attribute/` - JPA attribute converters (Y/N ↔ boolean)
-  - `config/` - CORS (`app.cors.allowed-origins`), `Cache-Control: no-store`, `Clock` (Asia/Seoul), JPA auditing
+  - `config/` - `SecurityConfig` (login required on `/api/**` except health and `/api/v1/auth/**` → 401; CSRF SPA cookie `__Host-XSRF-TOKEN` + header `X-XSRF-TOKEN` → 403 `CSRF_INVALID`), `SessionConfig` (Spring Session + Redis, namespace `jp:session`, cookie `__Host-JP_SID`, 14-day idle), `FlywayConfig`, CORS (`app.cors.allowed-origins`), `Cache-Control: no-store`, `Clock` (Asia/Seoul), JPA auditing
 
 ### Key Architectural Patterns
 - **Pure REST responses (D-031)**: Success returns the HTTP status + resource JSON directly (no wrapper). Errors are `application/problem+json` (RFC 9457) with extra `code` and `errors` properties. Throw `ApiException(ErrorCode, detail)` from services; `GlobalExceptionHandler` converts it. API spec: `../j-planner-product/08-api-design.md`, `08-openapi.yaml`
@@ -59,7 +60,9 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 - Reset local `jp` DB (drops everything, recreates tables from V1, loads sample data):
   `cd src/main/resources/sql && mysql -u jplanner -p < local-reset.sql`. `sample-data.sql` = local-only test data (dates around 2026-09-25)
 - JDBC URLs use `connectionTimeZone=Asia/Seoul&preserveInstants=false` (DATETIME stored/read as-is) and `sessionVariables=time_zone='%2B09:00'` (DB-side `NOW()` is KST even if the DB server is UTC)
-- Local login (until US-34): `DevLoginFilter` (local profile only) treats every request as the member `app.auth.dev-user-email` (= `JP_ADMIN_EMAIL` in `.env`). Set `JP_ADMIN_EMAIL` before the first start with V2 — V2 creates the admin member with it and moves the existing data to that member
+- `JP_ADMIN_EMAIL` (`.env`) is required: V2 creates the admin member with it and moves the existing data to that member (blank → startup fails)
+- Login (US-34): `POST /api/v1/auth/login` after `GET /api/v1/auth/csrf`. Local accounts until sign-up (US-33)/password reset (US-35): `JP_DEV_ACCOUNTS=email:password;email2:password2` in `.env` → `DevAccounts` (local profile only) creates missing members and sets a password only if none
+- Redis (sessions, rate limits) must run locally on 127.0.0.1:6379 (`brew install redis`). `tst`/`prd` read `JP_REDIS_HOST`, `JP_REDIS_PORT`, `JP_REDIS_USERNAME`, `JP_REDIS_PASSWORD`
 - Secrets: local DB password comes from `.env` in the project root (git-ignored, imported via `spring.config.import: optional:file:.env[.properties]`), e.g. `JP_DB_PASSWORD=...`, `JP_TEST_DB_PASSWORD=...`. `tst`/`prd` read `JP_DB_URL`, `JP_DB_USERNAME`, `JP_DB_PASSWORD`, `JP_CORS_ORIGINS` from the environment
 
 - Local profile writes a request log (method, path, status, ms) to `logs/access.YYYY-MM-DD.log` — use it to check what the server actually returned
@@ -75,7 +78,9 @@ Work test-first (08-api-design.md 12-1): turn each acceptance criterion (AC) in 
 - **Acceptance tests** `acceptance/USxx…AcceptanceTest` extend `AcceptanceTest`: one class per story, one test per AC, `@DisplayName("ACn: <AC sentence>")`. FE-only ACs are listed as "FE 담당" in the class Javadoc. Helpers: `postJson`, `createCategory`, `createTodo`, `read(result, "$.path")` …
 - **API tests** `api/v1/<feature>/…ApiTest`: detailed rules from 08 (validation, query combinations)
 - **Unit tests** (no DB, fast): rule classes such as `TodoDateRule`, `ScheduleTimes`, `Positions`, `DateRanges`, `JsonMergePatch`, entities. Use `support/ApiExceptionAssertions` for error code / field checks. Put rules in small classes so they can be unit tested
-- Requests in API/acceptance tests are sent as the admin member (user_id 1, `LoginUserConfig`). Other member: `createUser(email)` + `.with(as(id))`; no login: `.with(anonymous())`
+- Requests in API/acceptance tests are sent as the admin member (user_id 1, `LoginUserConfig`) with a CSRF cookie + header. Other member: `createUser(email)` + `.with(as(id))`; no login: `.with(anonymous())`; password: `setPassword(id, raw)`. Don't use spring-security-test `csrf()` — it swaps the shared CSRF store to a session one and breaks the cookie-flow tests
+- Real login/session/CSRF flow: `US34LoginAcceptanceTest` (`Browser` keeps cookies, MockMvc without defaults)
+- Needs local Redis on 127.0.0.1:6379 too (flushed before each integration test)
 - API/acceptance tests extend `support/IntegrationTest`: real MySQL test DB `jp_test` (created automatically), tables from Flyway migrations (`TestFlywayConfig` cleans and migrates `jp_test` at startup), data reset before each test by `src/test/resources/sql/reset.sql`. "Now" is fixed to 2026-09-25 (Fri) 09:00 KST by `FixedClockConfig`; week starts on Sunday
 - Needs a local MySQL on 127.0.0.1:3306. Override with `JP_TEST_DB_URL`, `JP_TEST_DB_USERNAME`, `JP_TEST_DB_PASSWORD`
 - Error shape / CORS tests use `@WebMvcTest` (`org.springframework.boot.webmvc.test.autoconfigure`)

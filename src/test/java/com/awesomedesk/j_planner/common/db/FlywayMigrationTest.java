@@ -30,4 +30,14 @@ class FlywayMigrationTest extends IntegrationTest {
         assertThat(tables).contains("categories", "calendars", "calendar_details", "todos", "ddays", "diaries", "memos",
             "user_settings", "sidebar_items");
     }
+
+    @Test
+    @DisplayName("D-069: 회원 상태는 ACTIVE·DORMANT만, 정지는 따로 suspended_at (V3)")
+    void suspensionIsSeparateFromStatus() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                jdbc.update("INSERT INTO users (email, name, status) VALUES ('s@test.local', 's', 'SUSPENDED')"))
+            .isInstanceOf(org.springframework.dao.DataAccessException.class).hasMessageContaining("ck_users_status");
+        jdbc.update("INSERT INTO users (email, name, status, suspended_at) VALUES ('s@test.local', 's', 'DORMANT', NOW())");
+        assertThat(jdbc.queryForObject("SELECT suspended_at IS NOT NULL FROM users WHERE email = 's@test.local'", Boolean.class)).isTrue();
+    }
 }

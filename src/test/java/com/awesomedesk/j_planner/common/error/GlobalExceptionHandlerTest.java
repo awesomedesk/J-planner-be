@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.common.error;
 
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -28,6 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 오류 응답이 Problem Details(RFC 9457) + code·errors 모양인지 확인한다 (08-api-design.md 2-6절).
  */
+// Spring Security 필터는 빼고 컨트롤러·오류 처리만 본다 (로그인·CSRF는 US34LoginAcceptanceTest)
+@AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(controllers = GlobalExceptionHandlerTest.TestController.class)
 @Import(GlobalExceptionHandlerTest.TestController.class)
 class GlobalExceptionHandlerTest {

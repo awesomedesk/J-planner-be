@@ -27,8 +27,9 @@ spring:
     hibernate:
       ddl-auto: none
 
-# 로그인 API(US-34) 전까지 로컬에서는 이 회원(admin)으로 로그인한 것으로 본다 (08-api-design.md 13-2, DevLoginFilter)
+# 로컬 로그인용 계정 준비 (DevAccounts): .env의 JP_DEV_ACCOUNTS=이메일:비밀번호;이메일:비밀번호
+# 없는 회원은 만들고, 비밀번호가 없을 때만 정한다. 가입(US-33)·비밀번호 찾기(US-35)가 생기면 지운다
 app:
   auth:
-    dev-user-email: ${JP_ADMIN_EMAIL:}
+    dev-accounts: ${JP_DEV_ACCOUNTS:}
 ---

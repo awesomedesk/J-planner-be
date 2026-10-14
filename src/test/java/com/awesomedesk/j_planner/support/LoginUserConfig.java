@@ -1,10 +1,11 @@
 package com.awesomedesk.j_planner.support;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import com.awesomedesk.j_planner.common.auth.AuthUser;
+import com.awesomedesk.j_planner.config.SecurityConfig;
+import jakarta.servlet.http.Cookie;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -18,9 +19,15 @@ import org.springframework.context.annotation.Bean;
 public class LoginUserConfig {
 
     public static final long ADMIN_ID = 1L;
+    static final String TEST_CSRF_TOKEN = "test-csrf-token";
 
     @Bean
     MockMvcBuilderCustomizer loginAsAdmin() {
-        return builder -> builder.defaultRequest(get("/").with(csrf()).with(authentication(new AuthUser(ADMIN_ID).toAuthentication())));
+        // CSRF는 실제와 같게 쿠키 + 같은 값의 헤더로. (spring-security-test의 csrf()는 공유 필터의 토큰 저장소를
+        //  세션 방식으로 바꿔 버려서, 쿠키 흐름을 보는 US-34 테스트를 깨뜨린다)
+        return builder -> builder.defaultRequest(get("/")
+            .cookie(new Cookie(SecurityConfig.CSRF_COOKIE, TEST_CSRF_TOKEN))
+            .header("X-XSRF-TOKEN", TEST_CSRF_TOKEN)
+            .with(authentication(new AuthUser(ADMIN_ID).toAuthentication())));
     }
 }
