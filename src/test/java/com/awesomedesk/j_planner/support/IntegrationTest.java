@@ -21,7 +21,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
  * 모든 응답은 명세(08-openapi.yaml)와 자동 대조한다 (OpenApiContract).
  * "지금"은 FixedClockConfig의 2026-09-25 09:00 (한국 시간)으로 고정한다.
  * 요청은 기본으로 admin 계정(user_id = 1)이 로그인한 것으로 보낸다 (LoginUserConfig, US-32).
- * Redis(세션·요청 제한, US-34)도 테스트마다 비운다. 로컬 Redis 127.0.0.1:6379가 있어야 한다.
+ * Redis(세션·요청 제한, US-34)도 테스트마다 비운다 (1번 DB만 — 로컬 서버가 쓰는 0번은 그대로). 로컬 Redis 127.0.0.1:6379가 있어야 한다.
  * 로컬 MySQL에 jp_test를 만들 수 있는 계정이 있어야 한다 (JP_TEST_DB_URL / USERNAME / PASSWORD로 바꿀 수 있음).
  */
 @SpringBootTest

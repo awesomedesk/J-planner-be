@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
  *   <li>계정(이메일)별: 실패 수 {@code jp:rl:login-fail:<해시>}(마지막 실패 뒤 24시간 유지, 성공하면 지움),
  *       기다릴 시간 {@code jp:rl:login-wait:<해시>}(TTL = {@link LoginBackoff}). 없는 계정도 똑같이 센다</li>
  * </ul>
+ * TODO(US-41) 소금 없는 SHA-256은 IPv4·흔한 이메일을 되돌릴 수 있다 → 비밀 키(환경 변수) HMAC-SHA256으로 바꾼다 (PO 제안, m20261014-po-be-us34-code)
  */
 @Component
 @RequiredArgsConstructor

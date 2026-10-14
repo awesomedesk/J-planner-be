@@ -57,6 +57,7 @@ public class DeviceSessions {
         session.setAttribute(LOGIN_AT, now);
         session.setAttribute(STATUS_CHECKED_AT, now);
         session.setAttribute(USER_AGENT, request.getHeader("User-Agent"));
+        // TODO(US-41) 프록시 뒤 진짜 IP: 지금은 getRemoteAddr()라 Caddy/nginx 뒤에서는 모두 프록시 IP가 된다. tst·prd에 forward-headers + 믿는 프록시 주소만 설정 (09 US-41 AC)
         session.setAttribute(IP, request.getRemoteAddr());
         keepNewest(userId, session.getId());
     }

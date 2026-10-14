@@ -52,6 +52,7 @@ public class LoginService {
         Member member = findMember(email);
         Long userId = member == null ? null : member.id();
         try {
+            // TODO(US-41) 프록시 뒤 진짜 IP: 지금은 getRemoteAddr()라 Caddy/nginx 뒤에서는 모두 프록시 IP가 된다. tst·prd에 forward-headers + 믿는 프록시 주소만 설정 (09 US-41 AC)
             rateLimiter.countIp(http.getRemoteAddr());
         } catch (TooManyRequestsException e) {
             audit.user(userId, AuditEvent.RATE_LIMITED, http, Map.of("rule", "login-ip"));

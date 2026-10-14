@@ -62,7 +62,9 @@ The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.b
 - JDBC URLs use `connectionTimeZone=Asia/Seoul&preserveInstants=false` (DATETIME stored/read as-is) and `sessionVariables=time_zone='%2B09:00'` (DB-side `NOW()` is KST even if the DB server is UTC)
 - `JP_ADMIN_EMAIL` (`.env`) is required: V2 creates the admin member with it and moves the existing data to that member (blank → startup fails)
 - Login (US-34): `POST /api/v1/auth/login` after `GET /api/v1/auth/csrf`. Local accounts until sign-up (US-33)/password reset (US-35): `JP_DEV_ACCOUNTS=email:password;email2:password2` in `.env` → `DevAccounts` (local profile only) creates missing members and sets a password only if none
-- Redis (sessions, rate limits) must run locally on 127.0.0.1:6379 (`brew install redis`). `tst`/`prd` read `JP_REDIS_HOST`, `JP_REDIS_PORT`, `JP_REDIS_USERNAME`, `JP_REDIS_PASSWORD`
+- Redis (sessions, rate limits) must run locally on 127.0.0.1:6379 — **Docker, Redis 8.2** (README "로컬 실행"):
+  `docker run -d --name jp-redis --restart unless-stopped -p 127.0.0.1:6379:6379 redis:8.2-alpine --save "" --appendonly no`.
+  Bind to 127.0.0.1 only (no password locally), no persistence (just log in again). 8.2 = the Extended (LTS-like) 8.x release; production uses 8.2 too. Code uses only basic commands (INCR, EXPIRE, SET) — no 8.8+ commands such as INCREX. Stop brew Redis first if it runs (`brew services stop redis`). `tst`/`prd` read `JP_REDIS_HOST`, `JP_REDIS_PORT`, `JP_REDIS_USERNAME`, `JP_REDIS_PASSWORD`
 - Secrets: local DB password comes from `.env` in the project root (git-ignored, imported via `spring.config.import: optional:file:.env[.properties]`), e.g. `JP_DB_PASSWORD=...`, `JP_TEST_DB_PASSWORD=...`. `tst`/`prd` read `JP_DB_URL`, `JP_DB_USERNAME`, `JP_DB_PASSWORD`, `JP_CORS_ORIGINS` from the environment
 
 - Local profile writes a request log (method, path, status, ms) to `logs/access.YYYY-MM-DD.log` — use it to check what the server actually returned
@@ -80,7 +82,7 @@ Work test-first (08-api-design.md 12-1): turn each acceptance criterion (AC) in 
 - **Unit tests** (no DB, fast): rule classes such as `TodoDateRule`, `ScheduleTimes`, `Positions`, `DateRanges`, `JsonMergePatch`, entities. Use `support/ApiExceptionAssertions` for error code / field checks. Put rules in small classes so they can be unit tested
 - Requests in API/acceptance tests are sent as the admin member (user_id 1, `LoginUserConfig`) with a CSRF cookie + header. Other member: `createUser(email)` + `.with(as(id))`; no login: `.with(anonymous())`; password: `setPassword(id, raw)`. Don't use spring-security-test `csrf()` — it swaps the shared CSRF store to a session one and breaks the cookie-flow tests
 - Real login/session/CSRF flow: `US34LoginAcceptanceTest` (`Browser` keeps cookies, MockMvc without defaults)
-- Needs local Redis on 127.0.0.1:6379 too (flushed before each integration test)
+- Needs local Redis on 127.0.0.1:6379 too. Tests use Redis **DB 1** (`src/test/resources/application.yml`, `JP_TEST_REDIS_DATABASE`) and flush it before each integration test; the local server uses DB 0, so running tests does not log you out
 - API/acceptance tests extend `support/IntegrationTest`: real MySQL test DB `jp_test` (created automatically), tables from Flyway migrations (`TestFlywayConfig` cleans and migrates `jp_test` at startup), data reset before each test by `src/test/resources/sql/reset.sql`. "Now" is fixed to 2026-09-25 (Fri) 09:00 KST by `FixedClockConfig`; week starts on Sunday
 - Needs a local MySQL on 127.0.0.1:3306. Override with `JP_TEST_DB_URL`, `JP_TEST_DB_USERNAME`, `JP_TEST_DB_PASSWORD`
 - Error shape / CORS tests use `@WebMvcTest` (`org.springframework.boot.webmvc.test.autoconfigure`)

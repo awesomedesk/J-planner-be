@@ -23,6 +23,12 @@ spring:
       admin_email: admin@test.local
   config:
     import: optional:file:.env[.properties]
+  # 테스트는 Redis 1번 DB를 쓴다. 테스트마다 비우는데(IntegrationTest), 로컬 서버(0번 DB)를 켜 둔 채 돌려도 로그인 세션이 지워지지 않게
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: ${JP_TEST_REDIS_DATABASE:1}
   jackson:
     time-zone: Asia/Seoul
 
