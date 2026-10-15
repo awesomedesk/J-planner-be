@@ -15,16 +15,41 @@ MBTI 유형 중 'J' 유형을 갖고 있는 사람들이 사용하고 싶은 플
 
 ### 준비물
 - Java 25
-- MySQL 8.4 — `127.0.0.1:3306`, 서비스 DB `jp` / 테스트 DB `jp_test`·`jp_test_migration`(자동 생성)
-  - `jplanner` 계정에 두 테스트 DB 권한이 있어야 한다. 처음 한 번 root로:
-    ```sql
-    GRANT ALL PRIVILEGES ON jp_test.* TO 'jplanner'@'%';
-    GRANT ALL PRIVILEGES ON jp_test_migration.* TO 'jplanner'@'%';
-    ```
-    (`jp_test_migration`은 US-32 마이그레이션 테스트가 V1부터 다시 쌓아 보는 빈 DB)
+- MySQL 8.4 — `127.0.0.1:3306`, 서비스 DB `jp` / 테스트 DB `jp_test`·`jp_test_migration`(자동 생성). **Docker로 켠다** (아래)
 - Redis 8.2 — `127.0.0.1:6379`, **Docker로 켠다** (아래)
 - 프로젝트 루트의 `.env` (git에 올리지 않음): `JP_DB_PASSWORD`, `JP_TEST_DB_PASSWORD`, `JP_ADMIN_EMAIL`, `JP_DEV_ACCOUNTS` 등 — 자세한 것은 `CLAUDE.md`의 Local DB
 - 기획 저장소 `j-planner-product`가 이 저장소 옆에 있어야 빌드된다 (`08-openapi.yaml`)
+
+### MySQL (Docker)
+이미 켜 둔 MySQL 컨테이너가 있으면 그대로 쓴다. 이름은 `docker ps`로 찾는다 (아래 `<MySQL 컨테이너>` 자리).
+
+```bash
+# 컨테이너 이름 찾기 (IMAGE가 mysql인 줄의 NAMES)
+docker ps
+
+# MySQL에 접속 (root 또는 jplanner)
+docker exec -it <MySQL 컨테이너> mysql -u root -p
+```
+
+처음 만든다면 (예시 — 비밀번호는 직접 정해서 `.env`에만 적는다):
+```bash
+docker run -d --name jp-mysql --restart unless-stopped \
+  -p 127.0.0.1:3306:3306 \
+  -e MYSQL_ROOT_PASSWORD='<root 비밀번호>' \
+  -v jp-mysql-data:/var/lib/mysql \
+  mysql:8.4
+```
+`-p 127.0.0.1:3306:3306`은 내 컴퓨터에서만 접속하게 하고, `-v jp-mysql-data:…`는 컨테이너를 지워도 데이터가 남게 한다.
+
+`jplanner` 계정과 권한 (처음 한 번, root로 접속해서):
+```sql
+CREATE USER IF NOT EXISTS 'jplanner'@'%' IDENTIFIED BY '<비밀번호>';   -- .env의 JP_DB_PASSWORD·JP_TEST_DB_PASSWORD
+CREATE DATABASE IF NOT EXISTS jp;
+GRANT ALL PRIVILEGES ON jp.* TO 'jplanner'@'%';
+GRANT ALL PRIVILEGES ON jp_test.* TO 'jplanner'@'%';
+GRANT ALL PRIVILEGES ON jp_test_migration.* TO 'jplanner'@'%';
+```
+`jp_test_migration`은 US-32 마이그레이션 테스트가 V1부터 다시 쌓아 보는 빈 DB다. 권한이 없으면 그 테스트 하나가 `Access denied`로 실패한다.
 
 ### Redis (Docker)
 로그인 세션·요청 제한(US-34)에 쓴다.
@@ -65,7 +90,13 @@ docker exec jp-redis redis-cli ping
 
 그래서 `.env`에서 비밀번호만 바꾸면 반영되지 않는다. 바꾸려면 그 회원의 `password_credentials` 행을 지우고 서버를 다시 켠다.
 ```bash
+# MySQL이 Docker면 (컨테이너 이름은 docker ps)
+docker exec -it <MySQL 컨테이너> mysql -u jplanner -p jp \
+  -e "DELETE FROM password_credentials WHERE user_id = (SELECT user_id FROM users WHERE email = 'me@example.com');"
+
+# MySQL을 컴퓨터에 직접 설치했으면
 mysql -u jplanner -p jp -e "DELETE FROM password_credentials WHERE user_id = (SELECT user_id FROM users WHERE email = 'me@example.com');"
+
 # 그다음 서버 재시작 → .env의 새 비밀번호가 들어간다
 ```
 
