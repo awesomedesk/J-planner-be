@@ -41,3 +41,9 @@ springdoc:
 app:
   cors:
     allowed-origins: ${JP_CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
+  # FE 화면 주소 — 메일 링크(가입 인증 /signup/verify?token=…)에 쓴다 (D-074: 운영 도메인은 설정값으로). tst·prd는 JP_WEB_BASE_URL
+  web:
+    base-url: ${JP_WEB_BASE_URL:http://localhost:3000}
+  # 계정 메일 보내는 주소 (D-074). 지금은 가짜 발송(LoggingAuthMailer) — 실제 발송은 도메인 구입·배포 준비 때
+  mail:
+    from: ${JP_MAIL_FROM:no-reply@awesomedesk.co.kr}

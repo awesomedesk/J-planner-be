@@ -24,6 +24,12 @@ public class PasswordCredentials {
             userId, encoder.encode(rawPassword), LocalDateTime.now(clock).withNano(0));
     }
 
+    /** 이미 만든 해시를 그대로 넣는다 (가입 인증: 임시 가입 때 만든 해시, US-33) */
+    public void setHash(long userId, String passwordHash) {
+        jdbc.update("INSERT INTO password_credentials (user_id, password_hash, changed_at) VALUES (?, ?, ?)",
+            userId, passwordHash, LocalDateTime.now(clock).withNano(0));
+    }
+
     /** 저장된 해시. 없으면 null */
     public String findHash(long userId) {
         List<String> hashes = jdbc.queryForList("SELECT password_hash FROM password_credentials WHERE user_id = ?", String.class, userId);

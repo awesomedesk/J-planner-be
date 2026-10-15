@@ -48,6 +48,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     static final String CODE = "code";
     static final String ERRORS = "errors";
+    static final String LOGIN_METHODS = "loginMethods";
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ProblemDetail> handleApiException(ApiException ex, HttpServletRequest request) {
@@ -61,6 +62,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ResponseEntity.BodyBuilder response = ResponseEntity.status(code.getStatus());
         if (ex instanceof TooManyRequestsException tooMany) {
             response.header(HttpHeaders.RETRY_AFTER, String.valueOf(tooMany.getRetryAfterSeconds()));
+        }
+        if (ex instanceof EmailAlreadyRegisteredException registered) {
+            problem.setProperty(LOGIN_METHODS, registered.getLoginMethods());
         }
         return response.body(problem);
     }

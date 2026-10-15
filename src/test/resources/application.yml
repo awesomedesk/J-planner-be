@@ -41,3 +41,10 @@ springdoc:
 app:
   cors:
     allowed-origins: http://localhost:3000
+  web:
+    base-url: http://localhost:3000
+  mail:
+    from: no-reply@example.com
+  auth:
+    hibp:
+      enabled: false
