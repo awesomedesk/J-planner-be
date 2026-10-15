@@ -11,6 +11,7 @@ TRUNCATE TABLE calendar_details;
 TRUNCATE TABLE calendars;
 TRUNCATE TABLE categories;
 TRUNCATE TABLE audit_logs;
+TRUNCATE TABLE pending_signups;
 TRUNCATE TABLE password_credentials;
 TRUNCATE TABLE users;
 SET FOREIGN_KEY_CHECKS = 1;

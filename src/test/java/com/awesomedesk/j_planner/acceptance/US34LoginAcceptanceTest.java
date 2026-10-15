@@ -1,16 +1,12 @@
 package com.awesomedesk.j_planner.acceptance;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers;
-import com.awesomedesk.j_planner.support.OpenApiContract;
-import jakarta.servlet.Filter;
 import jakarta.servlet.http.Cookie;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -21,17 +17,11 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
 
 /**
  * US-34 사용자는 이메일로 로그인·로그아웃한다 (AUTH-05·08, D-061).
@@ -45,7 +35,7 @@ import org.springframework.web.context.WebApplicationContext;
  * FE 담당: 로그인 화면, 앱을 열 때 GET /auth/csrf, 401이면 로그인 화면으로.
  */
 @DisplayName("US-34 이메일 로그인·로그아웃")
-class US34LoginAcceptanceTest extends AcceptanceTest {
+class US34LoginAcceptanceTest extends BrowserAcceptanceTest {
 
     private static final String LOGIN = "/api/v1/auth/login";
     private static final String LOGOUT = "/api/v1/auth/logout";
@@ -60,23 +50,10 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
     private static final String OTHER_EMAIL = "other@test.local";
     private static final String OTHER_PASSWORD = "other-password-5678";
 
-    @Autowired
-    private WebApplicationContext context;
-
-    @Autowired
-    @Qualifier("springSessionRepositoryFilter")
-    private Filter sessionFilter;
-
-    private MockMvc web;
     private long other;
 
     @BeforeEach
     void setUp() {
-        web = MockMvcBuilders.webAppContextSetup(context)
-            .addFilters(sessionFilter)
-            .apply(springSecurity())
-            .alwaysExpect(OpenApiValidationMatchers.openApi().isValid(OpenApiContract.validator()))
-            .build();
         setPassword(ADMIN_ID, ADMIN_PASSWORD);
         other = createUser(OTHER_EMAIL);
         setPassword(other, OTHER_PASSWORD);
@@ -94,7 +71,7 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
             new String[]{ADMIN_EMAIL, "wrong-password-0000"},
             new String[]{"nobody@test.local", ADMIN_PASSWORD},
             new String[]{"nopass@test.local", "any-password-1234"})) {
-            new Browser("198.51.100.1").withCsrf().login(attempt[0], attempt[1])
+            browser("198.51.100.1").withCsrf().login(attempt[0], attempt[1])
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.detail").value(FAIL));
@@ -104,7 +81,7 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
     @Test
     @DisplayName("AC1: 같은 계정으로 5번 틀리면 잠시(30초) 막히고(맞는 비밀번호도 429 + 같은 문구), 기다리면 다시 되며 성공하면 횟수가 초기화된다 (영구 잠금 없음)")
     void slowsDownAfterFailures() throws Exception {
-        Browser b = new Browser("198.51.100.2").withCsrf();
+        Browser b = browser("198.51.100.2").withCsrf();
         for (int i = 0; i < 5; i++) {
             b.login(ADMIN_EMAIL, "wrong-password-" + i).andExpect(status().isUnauthorized());
         }
@@ -126,21 +103,21 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
     @Test
     @DisplayName("AC1: 한 IP에서 1분에 20번까지 시도할 수 있고 21번째는 429다 (다른 IP는 영향 없음)")
     void limitsPerIp() throws Exception {
-        Browser b = new Browser("198.51.100.3").withCsrf();
+        Browser b = browser("198.51.100.3").withCsrf();
         for (int i = 0; i < 20; i++) {
             b.login("nobody" + i + "@test.local", "any-password-1234").andExpect(status().isUnauthorized());
         }
         b.login(ADMIN_EMAIL, ADMIN_PASSWORD)
             .andExpect(status().isTooManyRequests())
             .andExpect(jsonPath("$.code").value("TOO_MANY_REQUESTS"));
-        new Browser("198.51.100.4").withCsrf().login(ADMIN_EMAIL, ADMIN_PASSWORD).andExpect(status().isOk());
+        browser("198.51.100.4").withCsrf().login(ADMIN_EMAIL, ADMIN_PASSWORD).andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("AC1: 정지된 계정(suspended_at, D-069)은 비밀번호가 맞을 때만 403 ACCOUNT_SUSPENDED, 틀리면 같은 401")
     void suspendedAccount() throws Exception {
         jdbc.update("UPDATE users SET suspended_at = NOW() WHERE user_id = ?", other);
-        Browser b = new Browser("198.51.100.5").withCsrf();
+        Browser b = browser("198.51.100.5").withCsrf();
         b.login(OTHER_EMAIL, "wrong-password-0000").andExpect(status().isUnauthorized()).andExpect(jsonPath("$.detail").value(FAIL));
         b.login(OTHER_EMAIL, OTHER_PASSWORD)
             .andExpect(status().isForbidden())
@@ -151,7 +128,7 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
     @Test
     @DisplayName("AC1: 로그인 성공·실패·막힘은 감사 기록(audit_logs)에 남고, 이메일·비밀번호는 남기지 않는다")
     void auditLogs() throws Exception {
-        Browser b = new Browser("198.51.100.6").withCsrf();
+        Browser b = browser("198.51.100.6").withCsrf();
         b.login(ADMIN_EMAIL, ADMIN_PASSWORD).andExpect(status().isOk());
         b.login(ADMIN_EMAIL, "wrong-password-0000").andExpect(status().isUnauthorized());
         b.login("nobody@test.local", "wrong-password-0000").andExpect(status().isUnauthorized());
@@ -180,7 +157,7 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
     @Test
     @DisplayName("AC1: 이메일은 앞뒤 공백·대소문자를 무시하고, 빈 값은 400이다")
     void emailIsNormalized() throws Exception {
-        Browser b = new Browser("198.51.100.7").withCsrf();
+        Browser b = browser("198.51.100.7").withCsrf();
         b.login("  Admin@Test.LOCAL ", ADMIN_PASSWORD).andExpect(status().isOk());
         b.perform(post(LOGIN).contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"\",\"password\":\"\"}"))
             .andExpect(status().isBadRequest())
@@ -192,7 +169,7 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
     @Test
     @DisplayName("AC2: 로그인하면 내 정보(/me와 같은 모양)를 돌려주고, 세션을 새로 발급한다 (이전 세션 ID는 못 씀)")
     void loginIssuesNewSession() throws Exception {
-        Browser b = new Browser("198.51.100.8").withCsrf();
+        Browser b = browser("198.51.100.8").withCsrf();
         b.login(ADMIN_EMAIL, ADMIN_PASSWORD)
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.email").value(ADMIN_EMAIL))
@@ -206,7 +183,7 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
         assertThat(b.sid.getValue()).isNotEqualTo(first.getValue());
 
         b.get(ME).andExpect(status().isOk()).andExpect(jsonPath("$.email").value(ADMIN_EMAIL));
-        Browser old = new Browser("198.51.100.8");
+        Browser old = browser("198.51.100.8");
         old.sid = first;
         old.get(ME).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
@@ -214,7 +191,7 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
     @Test
     @DisplayName("AC2: 세션 쿠키는 __Host-JP_SID · Secure · HttpOnly · SameSite=Lax · Path=/ (Domain 없음), 30일")
     void sessionCookieAttributes() throws Exception {
-        Browser b = new Browser("198.51.100.9").withCsrf();
+        Browser b = browser("198.51.100.9").withCsrf();
         MockHttpServletResponse response = b.login(ADMIN_EMAIL, ADMIN_PASSWORD).andReturn().getResponse();
         String setCookie = setCookie(response, SESSION_COOKIE);
         assertThat(setCookie).contains("Path=/", "Secure", "HttpOnly", "SameSite=Lax", "Max-Age=2592000")
@@ -228,10 +205,10 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
         assertThat(setCookie(csrf, XSRF_COOKIE)).contains("Path=/", "Secure").doesNotContain("HttpOnly", "Domain=");
 
         // 로그인도 CSRF 토큰이 있어야 한다
-        Browser noToken = new Browser("198.51.100.10");
+        Browser noToken = browser("198.51.100.10");
         noToken.login(ADMIN_EMAIL, ADMIN_PASSWORD).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
 
-        Browser b = new Browser("198.51.100.10").withCsrf();
+        Browser b = browser("198.51.100.10").withCsrf();
         b.login(ADMIN_EMAIL, ADMIN_PASSWORD).andExpect(status().isOk());
         String memo = "{\"title\":\"메모\",\"content\":\"내용\"}";
 
@@ -344,70 +321,10 @@ class US34LoginAcceptanceTest extends AcceptanceTest {
 
     // ------------------------------------------------------------------ 준비
 
-    private Browser loggedIn(String email, String password, String ip) throws Exception {
-        Browser b = new Browser(ip).withCsrf();
-        b.login(email, password).andExpect(status().isOk());
-        return b;
-    }
-
     private static String setCookie(MockHttpServletResponse response, String name) {
         return response.getHeaders(HttpHeaders.SET_COOKIE).stream()
             .filter(h -> h.startsWith(name + "="))
             .findFirst()
             .orElseThrow(() -> new AssertionError(name + " Set-Cookie 없음: " + response.getHeaders(HttpHeaders.SET_COOKIE)));
-    }
-
-    /** 쿠키를 기억하는 브라우저 하나 (기기 하나) */
-    private final class Browser {
-
-        private final String ip;
-        private Cookie sid;
-        private String xsrf;
-
-        Browser(String ip) {
-            this.ip = ip;
-        }
-
-        Browser withCsrf() throws Exception {
-            MockHttpServletResponse response = web.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(CSRF).with(r -> {
-                r.setRemoteAddr(ip);
-                return r;
-            })).andExpect(status().isNoContent()).andReturn().getResponse();
-            this.xsrf = response.getCookie(XSRF_COOKIE).getValue();
-            return this;
-        }
-
-        ResultActions login(String email, String password) throws Exception {
-            return perform(post(LOGIN).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"));
-        }
-
-        ResultActions get(String url) throws Exception {
-            return perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url));
-        }
-
-        ResultActions perform(MockHttpServletRequestBuilder request) throws Exception {
-            List<Cookie> cookies = new ArrayList<>();
-            if (sid != null) {
-                cookies.add(sid);
-            }
-            if (xsrf != null) {
-                cookies.add(new Cookie(XSRF_COOKIE, xsrf));
-                request.header("X-XSRF-TOKEN", xsrf);
-            }
-            if (!cookies.isEmpty()) {
-                request.cookie(cookies.toArray(Cookie[]::new));
-            }
-            request.header(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Macintosh) Chrome/141.0");
-            ResultActions result = web.perform(request.with(r -> {
-                r.setRemoteAddr(ip);
-                return r;
-            }));
-            Cookie newSid = result.andReturn().getResponse().getCookie(SESSION_COOKIE);
-            if (newSid != null) {
-                sid = newSid.getMaxAge() == 0 ? null : newSid;
-            }
-            return result;
-        }
     }
 }
