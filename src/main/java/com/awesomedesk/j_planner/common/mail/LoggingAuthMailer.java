@@ -26,4 +26,14 @@ public class LoggingAuthMailer implements AuthMailer {
     public void sendSignupVerification(String to, String name, String link) {
         log.info("[가짜 메일] 가입 인증 from={} to={} — 링크: {}", from, EmailMasker.mask(to), link);
     }
+
+    @Override
+    public void sendPasswordReset(String to, String name, String link) {
+        log.info("[가짜 메일] 비밀번호 재설정 from={} to={} — 링크: {}", from, EmailMasker.mask(to), link);
+    }
+
+    @Override
+    public void sendPasswordChanged(String to, String name) {
+        log.info("[가짜 메일] 비밀번호 바뀜 알림 from={} to={}", from, EmailMasker.mask(to));
+    }
 }

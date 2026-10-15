@@ -83,6 +83,16 @@ public class DeviceSessions {
         return count;
     }
 
+    /** 그 회원의 모든 기기 로그아웃 (비밀번호 재설정·변경, 이메일 변경, 탈퇴 — 08 13-1). 지운 수 */
+    public int endAll(long userId) {
+        int count = 0;
+        for (String id : sessions.findByPrincipalName(String.valueOf(userId)).keySet()) {
+            sessions.deleteById(id);
+            count++;
+        }
+        return count;
+    }
+
     /** 새 세션 말고 이미 10대면, 가장 오래 안 쓴 것부터 지워 새 세션까지 10대로 맞춘다 */
     private void keepNewest(long userId, String newSessionId) {
         Map<String, ? extends Session> mine = sessions.findByPrincipalName(String.valueOf(userId));

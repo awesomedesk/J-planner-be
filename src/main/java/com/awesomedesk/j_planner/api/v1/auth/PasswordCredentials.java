@@ -30,6 +30,13 @@ public class PasswordCredentials {
             userId, passwordHash, LocalDateTime.now(clock).withNano(0));
     }
 
+    /** 이미 만든 해시로 정하거나 바꾼다 (비밀번호 재설정, US-35) */
+    public void setEncoded(long userId, String passwordHash, LocalDateTime now) {
+        jdbc.update("INSERT INTO password_credentials (user_id, password_hash, changed_at) VALUES (?, ?, ?) "
+                + "ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), changed_at = VALUES(changed_at)",
+            userId, passwordHash, now);
+    }
+
     /** 저장된 해시. 없으면 null */
     public String findHash(long userId) {
         List<String> hashes = jdbc.queryForList("SELECT password_hash FROM password_credentials WHERE user_id = ?", String.class, userId);

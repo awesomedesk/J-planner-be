@@ -23,23 +23,28 @@ public class PasswordPolicy {
     }
 
     public void check(String password) {
+        check(password, "password");
+    }
+
+    /** @param field 오류 칸 이름 (가입 password, 재설정·변경 newPassword) */
+    public void check(String password, String field) {
         if (password == null) {
-            throw ApiException.validation("password", "비밀번호를 입력해 주세요.");
+            throw ApiException.validation(field, "비밀번호를 입력해 주세요.");
         }
         int length = password.codePointCount(0, password.length());
         if (length < MIN) {
-            throw rejected("비밀번호는 " + MIN + "자 이상이어야 해요.");
+            throw rejected(field, "비밀번호는 " + MIN + "자 이상이어야 해요.");
         }
         if (length > MAX) {
-            throw rejected("비밀번호는 " + MAX + "자까지 쓸 수 있어요.");
+            throw rejected(field, "비밀번호는 " + MAX + "자까지 쓸 수 있어요.");
         }
         if (breached.isBreached(password)) {
-            throw rejected("유출된 적이 있는 비밀번호예요. 다른 비밀번호를 써 주세요.");
+            throw rejected(field, "유출된 적이 있는 비밀번호예요. 다른 비밀번호를 써 주세요.");
         }
     }
 
-    private static ApiException rejected(String message) {
+    private static ApiException rejected(String field, String message) {
         return new ApiException(ErrorCode.PASSWORD_REJECTED, ErrorCode.PASSWORD_REJECTED.getDefaultDetail(),
-            List.of(new FieldErrorDetail("password", message)));
+            List.of(new FieldErrorDetail(field, message)));
     }
 }
