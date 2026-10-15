@@ -53,6 +53,15 @@ docker exec jp-redis redis-cli ping
 - 서버는 Redis **0번 DB**, 테스트는 **1번 DB**를 쓴다. 테스트가 매번 1번 DB만 비우므로 서버를 켜 둔 채 테스트를 돌려도 로그인이 풀리지 않는다.
 - 끄기 `docker stop jp-redis` · 다시 켜기 `docker start jp-redis` · 지우기 `docker rm -f jp-redis`
 
+### 로컬 로그인 계정 (`JP_DEV_ACCOUNTS`)
+가입(US-33)·비밀번호 찾기(US-35)가 생기기 전까지 `.env`의 `JP_DEV_ACCOUNTS=이메일:비밀번호;이메일:비밀번호`(비밀번호 15자 이상)로 로컬 계정을 만든다. 서버가 켜질 때 없는 회원은 만들고, **비밀번호는 DB에 없을 때만** 넣는다.
+
+그래서 `.env`에서 비밀번호만 바꾸면 반영되지 않는다. 바꾸려면 그 회원의 `password_credentials` 행을 지우고 서버를 다시 켠다.
+```bash
+mysql -u jplanner -p jp -e "DELETE FROM password_credentials WHERE user_id = (SELECT user_id FROM users WHERE email = 'me@example.com');"
+# 그다음 서버 재시작 → .env의 새 비밀번호가 들어간다
+```
+
 ### 서버·테스트
 ```bash
 ./gradlew bootRun   # http://localhost:8080 (Swagger UI: /swagger-ui.html)
