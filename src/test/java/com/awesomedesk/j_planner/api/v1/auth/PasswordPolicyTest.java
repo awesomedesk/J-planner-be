@@ -63,4 +63,12 @@ class PasswordPolicyTest {
         assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PASSWORD_REJECTED);
         assertThat(e.getErrors()).first().extracting("field").isEqualTo("password");
     }
+
+    @Test
+    @DisplayName("오류 칸 이름을 정할 수 있다 — 재설정·변경은 newPassword (US-35·37)")
+    void fieldName() {
+        ApiException e = catchThrowableOfType(ApiException.class, () -> policy.check("short", "newPassword"));
+        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PASSWORD_REJECTED);
+        assertThat(e.getErrors()).first().extracting("field").isEqualTo("newPassword");
+    }
 }
