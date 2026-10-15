@@ -83,7 +83,7 @@ docker exec jp-redis redis-cli ping
 ```
 [가짜 메일] 가입 인증 from=no-reply@awesomedesk.co.kr to=ne***@e***.com — 링크: http://localhost:3000/signup/verify?token=…
 ```
-이 링크를 브라우저에 붙여 넣으면 FE 인증 화면이 열린다 (FE 화면이 없으면 `POST /api/v1/auth/signup/verify {"token":"…"}`를 Swagger UI에서 직접). 링크는 1회용·24시간.
+같은 줄이 `logs/fake-mail.log`에도 쌓인다 (local 프로필, git 제외). 이 링크를 브라우저에 붙여 넣으면 FE 인증 화면이 열린다 (FE 화면이 없으면 `POST /api/v1/auth/signup/verify {"token":"…"}`를 Swagger UI에서 직접). 링크는 1회용·24시간.
 
 ### 로컬 로그인 계정 (`JP_DEV_ACCOUNTS`)
 가입(US-33)·비밀번호 찾기(US-35)가 생기기 전까지 `.env`의 `JP_DEV_ACCOUNTS=이메일:비밀번호;이메일:비밀번호`(비밀번호 15자 이상)로 로컬 계정을 만든다. 서버가 켜질 때 없는 회원은 만들고, **비밀번호는 DB에 없을 때만** 넣는다.

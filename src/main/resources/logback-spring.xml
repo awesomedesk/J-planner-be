@@ -36,6 +36,17 @@
 
   <!-- spring profile별 로그 설정 -->
   <springProfile name="local">
+    <!-- 가짜 메일(LoggingAuthMailer)은 logs/fake-mail.log에도 남긴다 — 서버 콘솔을 못 보는 창(PO 검수)이 인증 링크를 읽을 수 있게 (US-33) -->
+    <appender name="FAKE_MAIL" class="ch.qos.logback.core.FileAppender">
+      <file>${LOGS_ABSOLUTE_PATH}/fake-mail.log</file>
+      <encoder>
+        <pattern>[%d{yyyy-MM-dd HH:mm:ss}] %msg%n</pattern>
+      </encoder>
+    </appender>
+    <logger name="com.awesomedesk.j_planner.common.mail.LoggingAuthMailer" level="INFO">
+      <appender-ref ref="FAKE_MAIL" />
+    </logger>
+
     <logger name="org.hibernate.SQL" level="DEBUG" additivity="false">
       <appender-ref ref="STDOUT"/>
     </logger>
