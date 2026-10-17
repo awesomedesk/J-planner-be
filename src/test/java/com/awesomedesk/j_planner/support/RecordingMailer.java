@@ -4,7 +4,7 @@ import com.awesomedesk.j_planner.common.mail.AuthMailer;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/** 테스트용 메일 발송: 보내지 않고 기억만 한다 (US-33·35). 테스트마다 비운다 (IntegrationTest) */
+/** 테스트용 메일 발송: 보내지 않고 기억만 한다 (US-33·35·36). 테스트마다 비운다 (IntegrationTest) */
 public class RecordingMailer implements AuthMailer {
 
     /** 보낸 메일 하나. link = 메일 안의 링크 */
@@ -28,6 +28,16 @@ public class RecordingMailer implements AuthMailer {
         sent.add(new Sent("PASSWORD_CHANGED", to, name, null));
     }
 
+    @Override
+    public void sendGoogleLinked(String to, String name) {
+        sent.add(new Sent("GOOGLE_LINKED", to, name, null));
+    }
+
+    @Override
+    public void sendGoogleUnlinked(String to, String name) {
+        sent.add(new Sent("GOOGLE_UNLINKED", to, name, null));
+    }
+
     public List<Sent> sent() {
         return List.copyOf(sent);
     }
@@ -37,7 +47,7 @@ public class RecordingMailer implements AuthMailer {
         return sent.stream().filter(m -> m.to().equals(to)).toList();
     }
 
-    /** 그 주소로 보낸 그 종류(SIGNUP / RESET / PASSWORD_CHANGED) 메일들 */
+    /** 그 주소로 보낸 그 종류(SIGNUP / RESET / PASSWORD_CHANGED / GOOGLE_LINKED / GOOGLE_UNLINKED) 메일들 */
     public List<Sent> sentTo(String to, String type) {
         return sent.stream().filter(m -> m.to().equals(to) && m.type().equals(type)).toList();
     }

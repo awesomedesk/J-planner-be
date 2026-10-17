@@ -27,6 +27,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-session-data-redis'
+    // 구글 로그인 (US-36, D-061): OpenID Connect — state·nonce·PKCE·ID 토큰 검증은 Spring Security OAuth2 Login이 한다
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     // 비밀번호 해시 Argon2id (Spring Security Argon2PasswordEncoder가 쓰는 구현)
     implementation 'org.bouncycastle:bcprov-jdk18on:1.86'
 

@@ -14,6 +14,7 @@ TRUNCATE TABLE audit_logs;
 TRUNCATE TABLE pending_signups;
 TRUNCATE TABLE auth_tokens;
 TRUNCATE TABLE password_credentials;
+TRUNCATE TABLE user_identities;
 TRUNCATE TABLE users;
 SET FOREIGN_KEY_CHECKS = 1;
 INSERT INTO users (user_id, email, name, status) VALUES (1, 'admin@test.local', '관리자', 'ACTIVE');
