@@ -87,6 +87,20 @@ docker exec jp-redis redis-cli ping
 
 비밀번호 찾기(US-35)도 같다: `[가짜 메일] 비밀번호 재설정 … 링크: http://localhost:3000/password/reset?token=…` (30분·1회용).
 
+### 로컬에서 구글 로그인 해 보기 (US-36)
+구글 OAuth 클라이언트가 없으면 구글 로그인은 꺼져 있다 (서버 시작 로그에 경고 한 줄, 구글 버튼 → `/login?error=GOOGLE_FAILED`). 켜려면:
+1. Google Cloud Console → API 및 서비스 → OAuth 동의 화면(외부, scope는 `openid`·`email`·`profile`만) → 사용자 인증 정보 → OAuth 클라이언트 ID(웹 애플리케이션)
+2. **승인된 리디렉션 URI**: `http://localhost:3000/api/v1/auth/google/callback` (FE 주소 + 경로. FE 개발 서버가 `/api/**`를 BE로 넘긴다. 정확히 같아야 한다)
+3. BE `.env`에 (저장소에 올리지 않는다)
+   ```
+   JP_GOOGLE_CLIENT_ID=<클라이언트 ID>
+   JP_GOOGLE_CLIENT_SECRET=<클라이언트 보안 비밀번호>
+   ```
+4. 서버 재시작 (V6 `user_identities`가 자동 적용) → 브라우저에서 `http://localhost:3000/api/v1/auth/google`
+
+테스트 서버·운영은 `JP_GOOGLE_CLIENT_ID`·`JP_GOOGLE_CLIENT_SECRET` 필수(없으면 켜지지 않음), redirect URI는 `<JP_WEB_BASE_URL>/api/v1/auth/google/callback`.
+테스트(`./gradlew test`)는 진짜 구글 대신 127.0.0.1의 가짜 구글을 쓴다 — 클라이언트가 없어도 된다.
+
 ### 로컬 로그인 계정 (`JP_DEV_ACCOUNTS`)
 가입(US-33)·비밀번호 찾기(US-35)가 생기기 전까지 `.env`의 `JP_DEV_ACCOUNTS=이메일:비밀번호;이메일:비밀번호`(비밀번호 15자 이상)로 로컬 계정을 만든다. 서버가 켜질 때 없는 회원은 만들고, **비밀번호는 DB에 없을 때만** 넣는다.
 
