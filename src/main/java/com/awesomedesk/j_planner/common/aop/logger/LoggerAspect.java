@@ -18,6 +18,7 @@ import tools.jackson.databind.JsonNode;
 /**
  * 컨트롤러·서비스 호출 로그 (debug/trace).
  * 일기·메모 같은 개인 내용이 로그에 남지 않도록 값 대신 모양만 적는다 ({@link #describe}).
+ * 우리 패키지의 클래스만 — 라이브러리의 *Service(예: Spring Security의 final 클래스 InMemoryOAuth2AuthorizedClientService, US-36)는 건드리지 않는다.
  */
 @Aspect
 @Slf4j
@@ -25,12 +26,12 @@ public class LoggerAspect {
 
     private final ParameterNameDiscoverer parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
 
-    @Around("execution(* *..*Controller.*(..))")
+    @Around("execution(* com.awesomedesk.j_planner..*Controller.*(..))")
     public Object doLog(ProceedingJoinPoint joinPoint) throws Throwable {
         return around(joinPoint, true);
     }
 
-    @Around("execution(* *..*Service.*(..))")
+    @Around("execution(* com.awesomedesk.j_planner..*Service.*(..))")
     public Object doServiceLog(ProceedingJoinPoint joinPoint) throws Throwable {
         return around(joinPoint, false);
     }

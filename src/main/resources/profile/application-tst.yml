@@ -6,6 +6,7 @@
 #   JP_CORS_ORIGINS  FE 주소 (쉼표로 여러 개)
 #   JP_WEB_BASE_URL  FE 화면 주소 (메일 링크, 예 https://planner.example.com) — 기본값 없음 (D-074)
 #   JP_MAIL_FROM     보내는 주소 (기본 no-reply@awesomedesk.co.kr)
+#   JP_GOOGLE_CLIENT_ID, JP_GOOGLE_CLIENT_SECRET  구글 로그인 OAuth 클라이언트 (US-36) — 기본값 없음
 spring:
   config:
     activate:
@@ -29,4 +30,9 @@ spring:
 app:
   web:
     base-url: ${JP_WEB_BASE_URL}
+  # 구글 로그인 (US-36). 기본값을 두지 않아 빠뜨리면 켜지지 않는다
+  auth:
+    google:
+      client-id: ${JP_GOOGLE_CLIENT_ID}
+      client-secret: ${JP_GOOGLE_CLIENT_SECRET}
 ---

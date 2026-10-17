@@ -110,12 +110,12 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
         String authorize = start(b, START);
         String code = google.approve(authorize, HONG);
 
-        assertThat(location(b.get(CALLBACK + "?code=" + enc(code) + "&state=wrong-state"))).isEqualTo(FE + "/login?error=GOOGLE_FAILED");
+        assertThat(location(b.getEncoded(CALLBACK + "?code=" + enc(code) + "&state=wrong-state"))).isEqualTo(FE + "/login?error=GOOGLE_FAILED");
 
         Browser other = browser("198.51.100.6");
         String code2 = google.approve(authorize, HONG);
         String state = FakeGoogle.query(authorize).get("state");
-        assertThat(location(other.get(CALLBACK + "?code=" + enc(code2) + "&state=" + enc(state)))).isEqualTo(FE + "/login?error=GOOGLE_FAILED");
+        assertThat(location(other.getEncoded(CALLBACK + "?code=" + enc(code2) + "&state=" + enc(state)))).isEqualTo(FE + "/login?error=GOOGLE_FAILED");
 
         assertThat(userCount()).isEqualTo(1);
         b.get(ME).andExpect(status().isUnauthorized());
@@ -140,7 +140,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     void cancelledAtGoogle() throws Exception {
         Browser b = browser("198.51.100.20");
         String state = FakeGoogle.query(start(b, START)).get("state");
-        assertThat(location(b.get(CALLBACK + "?error=access_denied&state=" + enc(state)))).isEqualTo(FE + "/login?error=GOOGLE_FAILED");
+        assertThat(location(b.getEncoded(CALLBACK + "?error=access_denied&state=" + enc(state)))).isEqualTo(FE + "/login?error=GOOGLE_FAILED");
         assertThat(userCount()).isEqualTo(1);
     }
 
@@ -379,7 +379,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
         b.postJson(REAUTH, "{\"password\":\"member-password-123\"}").andExpect(status().isNoContent());
 
         String state = FakeGoogle.query(start(b, CONNECT)).get("state");
-        assertThat(location(b.get(CALLBACK + "?error=access_denied&state=" + enc(state)))).isEqualTo(FE + "/me?error=GOOGLE_FAILED");
+        assertThat(location(b.getEncoded(CALLBACK + "?error=access_denied&state=" + enc(state)))).isEqualTo(FE + "/me?error=GOOGLE_FAILED");
         assertThat(callback(b, start(b, CONNECT), new GoogleUser("google-sub-kim", "k@gmail.com", true, "김"), Tamper.WRONG_NONCE))
             .isEqualTo(FE + "/me?error=GOOGLE_FAILED");
         b.get(ME).andExpect(status().isOk()).andExpect(jsonPath("$.email").value("kim@test.local"));
@@ -430,9 +430,8 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
         Browser b = browser("198.51.100.60");
         callback(b, start(b, START), HONG, Tamper.NONE);
         b.withCsrf();
-        long userId = userId("hong@gmail.com");
 
-        endAllSessions(userId); // 작성 중 로그인 만료
+        endAllSessions(); // 작성 중 로그인 만료
         String category = "{\"name\":\"이어서 저장\"}";
         b.postJson("/api/v1/categories", category).andExpect(status().isUnauthorized());
 
@@ -448,7 +447,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
 
     /** 시작 주소를 열면 구글 로그인 화면으로 302 — 그 주소 */
     private static String start(Browser b, String url) throws Exception {
-        String location = b.get(url).andExpect(status().isFound()).andReturn().getResponse().getRedirectedUrl();
+        String location = b.getEncoded(url).andExpect(status().isFound()).andReturn().getResponse().getRedirectedUrl();
         assertThat(location).isNotNull();
         return location;
     }
@@ -457,7 +456,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     private String callback(Browser b, String authorize, GoogleUser user, Tamper tamper) throws Exception {
         String code = google.approve(authorize, user, tamper);
         String state = FakeGoogle.query(authorize).get("state");
-        return location(b.get(CALLBACK + "?code=" + enc(code) + "&state=" + enc(state)));
+        return location(b.getEncoded(CALLBACK + "?code=" + enc(code) + "&state=" + enc(state)));
     }
 
     private static String location(ResultActions result) throws Exception {
@@ -474,7 +473,8 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
         return b;
     }
 
-    private void endAllSessions(long userId) {
+    /** 세션이 모두 끝난 것처럼 (Redis의 세션 키를 지움) */
+    private void endAllSessions() {
         for (String key : redis.keys("jp:session:*")) {
             redis.delete(key);
         }

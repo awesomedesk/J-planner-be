@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.api.v1.auth.google.UserIdentities;
 import com.awesomedesk.j_planner.api.v1.me.LoginMethod;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
@@ -44,6 +45,8 @@ public class SignupService {
 
     private final JdbcTemplate jdbc;
     private final PendingSignups pendingSignups;
+    private final PasswordCredentials passwordCredentials;
+    private final UserIdentities identities;
     private final PasswordPolicy passwordPolicy;
     private final PasswordEncoder encoder;
     private final AuthMailer mailer;
@@ -52,11 +55,14 @@ public class SignupService {
     private final Clock clock;
     private final String webBaseUrl;
 
-    public SignupService(JdbcTemplate jdbc, PendingSignups pendingSignups, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
+    public SignupService(JdbcTemplate jdbc, PendingSignups pendingSignups, PasswordCredentials passwordCredentials, UserIdentities identities,
+                         PasswordPolicy passwordPolicy, PasswordEncoder encoder,
                          AuthMailer mailer, RateLimits rateLimits, AuditLogger audit, Clock clock,
                          @Value("${app.web.base-url}") String webBaseUrl) {
         this.jdbc = jdbc;
         this.pendingSignups = pendingSignups;
+        this.passwordCredentials = passwordCredentials;
+        this.identities = identities;
         this.passwordPolicy = passwordPolicy;
         this.encoder = encoder;
         this.mailer = mailer;
@@ -143,11 +149,19 @@ public class SignupService {
         audit.user(userId, AuditEvent.SIGNUP_COMPLETED, http, Map.of("method", "EMAIL"));
     }
 
-    /** 이메일 계정 = EMAIL (비밀번호가 아직 없는 admin도 [로그인]/[비밀번호 찾기]로 안내). 구글 연결은 US-36에서 GOOGLE 추가 */
+    /**
+     * 409 안내의 로그인 방법 (08 13-3, D-076): EMAIL = 비밀번호가 있거나 구글도 없는 이메일 계정(비밀번호가 아직 없는 admin도
+     * [로그인]/[비밀번호 찾기]), GOOGLE = 구글 연결 있음. 구글로 가입해 비밀번호가 없으면 GOOGLE만
+     */
     private List<String> loginMethods(long userId) {
+        boolean google = identities.hasGoogle(userId);
         List<String> methods = new ArrayList<>();
-        // TODO(US-36) user_identities에 구글이 있으면 GOOGLE. 비밀번호 없이 구글만 있으면 GOOGLE만
-        methods.add(LoginMethod.EMAIL.name());
+        if (passwordCredentials.exists(userId) || !google) {
+            methods.add(LoginMethod.EMAIL.name());
+        }
+        if (google) {
+            methods.add(LoginMethod.GOOGLE.name());
+        }
         return methods;
     }
 

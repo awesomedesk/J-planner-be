@@ -18,6 +18,8 @@ public enum ErrorCode {
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."),
     /** CSRF 토큰 없음·틀림 (08 13-1) */
     CSRF_INVALID(HttpStatus.FORBIDDEN, "보안 토큰이 없거나 맞지 않습니다. 새로고침한 뒤 다시 시도하세요."),
+    /** 민감 작업(구글 연결·해제, 이메일·비밀번호 변경, 탈퇴)인데 재인증한 지 5분이 지남 (08 13-4) */
+    REAUTH_REQUIRED(HttpStatus.FORBIDDEN, "보안을 위해 비밀번호를 다시 확인해 주세요."),
     /** 운영자가 정지한 계정. 비밀번호가 맞을 때만 알려준다 (08 13-3) */
     ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN, "이용이 제한된 계정이에요."),
     /** 15자 미만·128자 초과·유출 비밀번호 (08 13-6). errors에 password */
@@ -26,6 +28,10 @@ public enum ErrorCode {
     TOKEN_INVALID(HttpStatus.BAD_REQUEST, "링크가 만료됐거나 이미 사용됐어요. 처음부터 다시 해 주세요."),
     /** 가입하려는 이메일이 이미 회원. 응답에 loginMethods (08 13-3) */
     EMAIL_ALREADY_REGISTERED(HttpStatus.CONFLICT, "이미 가입된 이메일이에요"),
+    /** 마지막 로그인 수단은 해제할 수 없다 — 비밀번호 없이 구글만 있는 계정의 구글 해제 (08 13-4) */
+    LAST_IDENTITY(HttpStatus.CONFLICT, "마지막 로그인 수단이라 해제할 수 없어요. 비밀번호를 먼저 만들어 주세요."),
+    /** 이미 구글이 연결된 계정에 다시 연결 — 회원당 구글 하나 (07 11-2 user_identities) */
+    IDENTITY_ALREADY_CONNECTED(HttpStatus.CONFLICT, "이미 구글이 연결돼 있어요. 해제한 뒤 다시 연결해 주세요."),
     /** 요청 횟수 제한 (08 13-7). Retry-After 헤더(초)와 함께 */
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도하세요."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 대상을 찾을 수 없습니다."),

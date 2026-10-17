@@ -36,4 +36,14 @@ public class LoggingAuthMailer implements AuthMailer {
     public void sendPasswordChanged(String to, String name) {
         log.info("[가짜 메일] 비밀번호 바뀜 알림 from={} to={}", from, EmailMasker.mask(to));
     }
+
+    @Override
+    public void sendGoogleLinked(String to, String name) {
+        log.info("[가짜 메일] 구글 연결 알림 from={} to={}", from, EmailMasker.mask(to));
+    }
+
+    @Override
+    public void sendGoogleUnlinked(String to, String name) {
+        log.info("[가짜 메일] 구글 연결 해제 알림 from={} to={}", from, EmailMasker.mask(to));
+    }
 }

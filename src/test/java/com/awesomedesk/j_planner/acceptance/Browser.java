@@ -56,6 +56,11 @@ final class Browser {
         return perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url));
     }
 
+    /** 쿼리를 이미 인코딩한 주소 그대로 (구글 콜백의 state 등 — String 주소는 MockMvc가 한 번 더 인코딩한다) */
+    ResultActions getEncoded(String encodedUrl) throws Exception {
+        return perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(java.net.URI.create(encodedUrl)));
+    }
+
     ResultActions perform(MockHttpServletRequestBuilder request) throws Exception {
         List<Cookie> cookies = new ArrayList<>();
         if (sid != null) {

@@ -47,3 +47,14 @@ app:
   # 계정 메일 보내는 주소 (D-074). 지금은 가짜 발송(LoggingAuthMailer) — 실제 발송은 도메인 구입·배포 준비 때
   mail:
     from: ${JP_MAIL_FROM:no-reply@awesomedesk.co.kr}
+  # 구글 로그인 (US-36, OpenID Connect). 클라이언트 ID·비밀값은 .env / 환경 변수로만 (저장소에 쓰지 않음).
+  # 로컬에서 비워 두면 구글 로그인이 꺼진다 (구글 버튼 → /login?error=GOOGLE_FAILED). tst·prd는 필수.
+  # 구글 콘솔에 등록할 redirect URI = <app.web.base-url>/api/v1/auth/google/callback (예: 로컬 http://localhost:3000/api/v1/auth/google/callback)
+  auth:
+    google:
+      client-id: ${JP_GOOGLE_CLIENT_ID:}
+      client-secret: ${JP_GOOGLE_CLIENT_SECRET:}
+      authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+      token-uri: https://oauth2.googleapis.com/token
+      jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+      issuer: https://accounts.google.com
