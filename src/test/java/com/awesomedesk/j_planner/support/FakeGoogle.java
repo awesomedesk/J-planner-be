@@ -55,7 +55,9 @@ public class FakeGoogle implements AutoCloseable {
         /** 이미 만료 */
         EXPIRED,
         /** 시작할 때 보낸 nonce와 다름 (토큰 재사용) */
-        WRONG_NONCE
+        WRONG_NONCE,
+        /** 구글에서 다시 로그인하지 않음 — auth_time이 10분 전 (재인증, US-37) */
+        STALE_AUTH_TIME
     }
 
     /** 구글 계정 하나. email·name은 null이어도 된다 */
@@ -183,7 +185,8 @@ public class FakeGoogle implements AutoCloseable {
             .issueTime(Date.from(grant.tamper() == Tamper.EXPIRED ? now.minusSeconds(7200) : now))
             .expirationTime(Date.from(grant.tamper() == Tamper.EXPIRED ? now.minusSeconds(3600) : now.plusSeconds(3600)))
             .claim("nonce", grant.tamper() == Tamper.WRONG_NONCE ? "another-nonce" : grant.authorize().get("nonce"))
-            .claim("email_verified", user.emailVerified());
+            .claim("email_verified", user.emailVerified())
+            .claim("auth_time", (grant.tamper() == Tamper.STALE_AUTH_TIME ? now.minusSeconds(600) : now).getEpochSecond());
         if (user.email() != null) {
             claims.claim("email", user.email());
         }
