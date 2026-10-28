@@ -40,6 +40,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     private static final String IDENTITIES = "/api/v1/me/identities";
     private static final String DISCONNECT = "/api/v1/me/identities/google";
     private static final String REAUTH = "/api/v1/me/reauth";
+    private static final String SIGNUP_GOOGLE = "/api/v1/auth/google/signup";
     private static final String ME = "/api/v1/me";
     private static final String FE = "http://localhost:3000";
     private static final String REDIRECT_URI = FE + CALLBACK;
@@ -96,7 +97,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
         Browser b = browser("198.51.100.4");
         String authorize = start(b, START);
         String location = callback(b, authorize, HONG, Tamper.NONE);
-        assertThat(location).isEqualTo(FE + "/");
+        assertThat(location).isEqualTo(FE + "/signup/google");
 
         FakeGoogle.TokenRequest token = google.tokenRequests().getLast();
         assertThat(token.form().get("redirect_uri")).isEqualTo(REDIRECT_URI);
@@ -155,22 +156,37 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     }
 
     @Test
-    @DisplayName("AC1: 처음 보는 구글(email_verified=true) → 새 회원 + 구글 연결 + 기본 데이터 + 로그인(새 세션 ID) → / , 감사 기록 SIGNUP_COMPLETED·LOGIN {method: GOOGLE}")
-    void googleSignup() throws Exception {
+    @DisplayName("D-083: 처음 보는 구글(email_verified=true)은 바로 가입하지 않고 확인 화면 /signup/google — 회원 없음, GET은 구글 이메일·채워 둘 이름")
+    void newGoogleGoesToConfirmation() throws Exception {
         Browser b = browser("198.51.100.22");
-        String authorize = start(b, START);
-        String before = b.sid.getValue();
+        assertThat(callback(b, start(b, START), new GoogleUser("google-sub-new", "  New.Member@Gmail.com ", true, "  새 회원  "), Tamper.NONE))
+            .isEqualTo(FE + "/signup/google");
+        assertThat(userCount()).isEqualTo(1);
+        assertThat(identityCount()).isZero();
+        b.get(ME).andExpect(status().isUnauthorized());
 
-        assertThat(callback(b, authorize, new GoogleUser("google-sub-new", "  New.Member@Gmail.com ", true, "  새 회원  "), Tamper.NONE))
-            .isEqualTo(FE + "/");
-        assertThat(b.sid).isNotNull();
-        assertThat(b.sid.getValue()).isNotEqualTo(before);
-
-        b.get(ME).andExpect(status().isOk())
+        b.get(SIGNUP_GOOGLE).andExpect(status().isOk())
             .andExpect(jsonPath("$.email").value("new.member@gmail.com"))
-            .andExpect(jsonPath("$.name").value("새 회원"))
+            .andExpect(jsonPath("$.name").value("새 회원"));
+    }
+
+    @Test
+    @DisplayName("D-083: [가입하기] → 201 새 회원 + 구글 연결 + 기본 데이터 + 로그인(새 세션 ID), 감사 기록 SIGNUP_COMPLETED·LOGIN {method: GOOGLE}, 대기 정보는 지워진다")
+    void googleSignup() throws Exception {
+        Browser b = browser("198.51.100.62");
+        assertThat(callback(b, start(b, START), new GoogleUser("google-sub-new", "new.member@gmail.com", true, "새 회원"), Tamper.NONE))
+            .isEqualTo(FE + "/signup/google");
+        String before = b.sid.getValue();
+        b.withCsrf();
+
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"  바꾼 이름 \",\"ageOver14\":true}").andExpect(status().isCreated())
+            .andExpect(jsonPath("$.email").value("new.member@gmail.com"))
+            .andExpect(jsonPath("$.name").value("바꾼 이름"))
             .andExpect(jsonPath("$.hasPassword").value(false))
             .andExpect(jsonPath("$.loginMethods").value(org.hamcrest.Matchers.contains("GOOGLE")));
+        assertThat(b.sid).isNotNull();
+        assertThat(b.sid.getValue()).isNotEqualTo(before);
+        b.get(ME).andExpect(status().isOk()).andExpect(jsonPath("$.name").value("바꾼 이름"));
 
         long userId = userId("new.member@gmail.com");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM categories WHERE user_id = ? AND is_default = 'Y'", Integer.class, userId)).isEqualTo(1);
@@ -180,25 +196,107 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
         assertThat(jdbc.queryForMap("SELECT provider, provider_subject, email_at_link FROM user_identities WHERE user_id = ?", userId))
             .containsEntry("provider", "GOOGLE").containsEntry("provider_subject", "google-sub-new").containsEntry("email_at_link", "new.member@gmail.com");
         assertThat(audits(userId)).contains("SIGNUP_COMPLETED {\"method\": \"GOOGLE\"}", "LOGIN {\"method\": \"GOOGLE\"}");
+
+        b.get(SIGNUP_GOOGLE).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("GOOGLE_SIGNUP_EXPIRED"));
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"또\",\"ageOver14\":true}").andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("GOOGLE_SIGNUP_EXPIRED"));
+        assertThat(userCount()).isEqualTo(2);
     }
 
     @Test
-    @DisplayName("AC1: 구글 이름이 없으면 이메일 @ 앞부분을, 50자가 넘으면 50자까지 이름으로 쓴다")
+    @DisplayName("D-083: 이름 1~50자(앞뒤 공백 정리)·만 14세 이상 체크가 없으면 400 VALIDATION_FAILED (errors name·ageOver14), 회원 안 만듦")
+    void signupValidation() throws Exception {
+        Browser b = browser("198.51.100.63");
+        callback(b, start(b, START), HONG, Tamper.NONE);
+        b.withCsrf();
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"   \",\"ageOver14\":false}").andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[*].field").value(org.hamcrest.Matchers.containsInAnyOrder("name", "ageOver14")));
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"" + "가".repeat(51) + "\",\"ageOver14\":true}").andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors[0].field").value("name"));
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"홍길동\"}").andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors[0].field").value("ageOver14"));
+        assertThat(userCount()).isEqualTo(1);
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"" + "가".repeat(50) + "\",\"ageOver14\":true}").andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("D-083: 가입 대기는 10분 — 지나거나, 대기가 없거나, 다른 브라우저면 400 GOOGLE_SIGNUP_EXPIRED")
+    void pendingExpires() throws Exception {
+        browser("198.51.100.64").get(SIGNUP_GOOGLE).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("GOOGLE_SIGNUP_EXPIRED"));
+        browser("198.51.100.64").withCsrf().postJson(SIGNUP_GOOGLE, "{\"name\":\"홍\",\"ageOver14\":true}")
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("GOOGLE_SIGNUP_EXPIRED"));
+
+        Browser b = browser("198.51.100.65");
+        callback(b, start(b, START), HONG, Tamper.NONE);
+        b.withCsrf();
+        clock.advance(Duration.ofMinutes(10).plusSeconds(1));
+        b.get(SIGNUP_GOOGLE).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("GOOGLE_SIGNUP_EXPIRED"));
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"홍\",\"ageOver14\":true}").andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("GOOGLE_SIGNUP_EXPIRED"));
+        assertThat(userCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("D-083: 기다리는 사이 같은 이메일 회원이 생기면 409 EMAIL_ALREADY_REGISTERED(loginMethods), 같은 구글이 다른 창에서 먼저 가입했으면 400 GOOGLE_SIGNUP_EXPIRED")
+    void raceWhileWaiting() throws Exception {
+        Browser b = browser("198.51.100.66");
+        callback(b, start(b, START), HONG, Tamper.NONE);
+        b.withCsrf();
+        long other = createUser("hong@gmail.com");
+        setPassword(other, "member-password-123");
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"홍\",\"ageOver14\":true}").andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_REGISTERED"))
+            .andExpect(jsonPath("$.loginMethods").value(org.hamcrest.Matchers.contains("EMAIL")));
+        assertThat(identityCount()).isZero();
+
+        GoogleUser kim = new GoogleUser("google-sub-kim", "kim@gmail.com", true, "김");
+        Browser first = browser("198.51.100.67");
+        Browser second = browser("198.51.100.68");
+        callback(first, start(first, START), kim, Tamper.NONE);
+        callback(second, start(second, START), kim, Tamper.NONE);
+        first.withCsrf().postJson(SIGNUP_GOOGLE, "{\"name\":\"김\",\"ageOver14\":true}").andExpect(status().isCreated());
+        second.withCsrf().postJson(SIGNUP_GOOGLE, "{\"name\":\"김\",\"ageOver14\":true}").andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("GOOGLE_SIGNUP_EXPIRED"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE email = 'kim@gmail.com'", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("D-083: 구글 시작에 next가 있었으면 확인 화면 GET이 next를 알려 준다 (가입 뒤 FE가 그리로)")
+    void signupKeepsNext() throws Exception {
+        Browser b = browser("198.51.100.69");
+        assertThat(callback(b, start(b, START + "?next=" + enc("/?view=week")), HONG, Tamper.NONE)).isEqualTo(FE + "/signup/google");
+        b.get(SIGNUP_GOOGLE).andExpect(jsonPath("$.next").value("/?view=week"));
+        Browser c = browser("198.51.100.70");
+        callback(c, start(c, START), new GoogleUser("google-sub-c", "c@gmail.com", true, "씨"), Tamper.NONE);
+        c.get(SIGNUP_GOOGLE).andExpect(jsonPath("$.next").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("D-083: 다시 로그인 팝업(popup=true)에서 처음 보는 구글이면 가입하지 않고 /login/google-done?error=GOOGLE_NOT_REGISTERED (FE 질문 A안)")
+    void popupWithNewGoogle() throws Exception {
+        Browser b = browser("198.51.100.71");
+        assertThat(callback(b, start(b, START + "?popup=true"), HONG, Tamper.NONE)).isEqualTo(FE + "/login/google-done?error=GOOGLE_NOT_REGISTERED");
+        b.get(SIGNUP_GOOGLE).andExpect(status().isBadRequest());
+        assertThat(userCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("D-082 1번·D-083: 확인 화면에 채워 둘 이름 = 구글 이름, 없으면 이메일 @ 앞부분, 50자가 넘으면 50자까지")
     void nameFallback() throws Exception {
         Browser b = browser("198.51.100.23");
         callback(b, start(b, START), new GoogleUser("google-sub-noname", "noname.user@gmail.com", true, null), Tamper.NONE);
-        b.get(ME).andExpect(jsonPath("$.name").value("noname.user"));
+        b.get(SIGNUP_GOOGLE).andExpect(jsonPath("$.name").value("noname.user"));
 
         Browser c = browser("198.51.100.24");
         callback(c, start(c, START), new GoogleUser("google-sub-long", "long@gmail.com", true, "가".repeat(60)), Tamper.NONE);
-        c.get(ME).andExpect(jsonPath("$.name").value("가".repeat(50)));
+        c.get(SIGNUP_GOOGLE).andExpect(jsonPath("$.name").value("가".repeat(50)));
     }
 
     @Test
     @DisplayName("AC1: 사용자는 구글 sub로 구분한다 — 구글 이메일이 바뀌어도 같은 계정으로 로그인 (회원 이메일은 그대로)")
     void identifiedBySub() throws Exception {
-        Browser b = browser("198.51.100.25");
-        callback(b, start(b, START), HONG, Tamper.NONE);
+        googleSignup("198.51.100.25", HONG);
         long userId = userId("hong@gmail.com");
 
         Browser other = browser("198.51.100.26");
@@ -213,8 +311,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     @Test
     @DisplayName("D-069: 정지된 회원은 구글로도 로그인할 수 없다 → /login?error=ACCOUNT_SUSPENDED, 감사 기록 LOGIN_FAILED {method: GOOGLE, reason: SUSPENDED}")
     void suspendedMember() throws Exception {
-        Browser b = browser("198.51.100.27");
-        callback(b, start(b, START), HONG, Tamper.NONE);
+        googleSignup("198.51.100.27", HONG);
         long userId = userId("hong@gmail.com");
         jdbc.update("UPDATE users SET suspended_at = NOW() WHERE user_id = ?", userId);
 
@@ -227,6 +324,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     @Test
     @DisplayName("로그인 뒤 갈 곳(next)은 사이트 안 경로만 따른다 — 바깥 주소·//·\\ 는 / 로, 실패하면 /login?error=…&next=…")
     void nextIsSiteRelativeOnly() throws Exception {
+        googleSignup("198.51.100.28", HONG);
         Browser b = browser("198.51.100.29");
         assertThat(callback(b, start(b, START + "?next=" + enc("/?view=week")), HONG, Tamper.NONE)).isEqualTo(FE + "/?view=week");
 
@@ -271,7 +369,8 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
         String link = mailer.sentTo("hong@gmail.com", "SIGNUP").getLast().link();
         String token = link.substring(link.indexOf("token=") + "token=".length());
 
-        assertThat(callback(b, start(b, START), HONG, Tamper.NONE)).isEqualTo(FE + "/");
+        assertThat(callback(b, start(b, START), HONG, Tamper.NONE)).isEqualTo(FE + "/signup/google");
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"홍길동\",\"ageOver14\":true}").andExpect(status().isCreated());
         b.get(ME).andExpect(status().isOk()).andExpect(jsonPath("$.email").value("hong@gmail.com")).andExpect(jsonPath("$.hasPassword").value(false));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pending_signups WHERE email = 'hong@gmail.com'", Integer.class)).isZero();
 
@@ -283,8 +382,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     @Test
     @DisplayName("AC2: 가입 409의 loginMethods — 구글로 가입한 계정은 GOOGLE만, 이메일 계정에 구글을 연결하면 EMAIL·GOOGLE")
     void signupConflictShowsGoogle() throws Exception {
-        Browser g = browser("198.51.100.45");
-        callback(g, start(g, START), HONG, Tamper.NONE);
+        googleSignup("198.51.100.45", HONG);
 
         Browser b = browser("198.51.100.46").withCsrf();
         b.postJson("/api/v1/auth/signup", "{\"email\":\"hong@gmail.com\",\"password\":\"another-password-123\",\"name\":\"홍\",\"ageOver14\":true}")
@@ -356,8 +454,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     @Test
     @DisplayName("AC3: 다른 계정에 연결된 구글은 거절 → /me?error=GOOGLE_ALREADY_LINKED (연결·메일 없음)")
     void googleLinkedToAnotherAccount() throws Exception {
-        Browser g = browser("198.51.100.55");
-        callback(g, start(g, START), HONG, Tamper.NONE);
+        googleSignup("198.51.100.55", HONG);
 
         long member = createUser("kim@test.local");
         setPassword(member, "member-password-123");
@@ -397,9 +494,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     @Test
     @DisplayName("AC3: 연결 해제 — 연결 없으면 404, 마지막 로그인 수단(비밀번호 없음)이면 409 LAST_IDENTITY, 재인증 5분 지나면 403, 해제하면 204 + 알림 메일 + IDENTITY_UNLINKED")
     void disconnectGoogle() throws Exception {
-        Browser g = browser("198.51.100.58");
-        callback(g, start(g, START), HONG, Tamper.NONE);
-        g.withCsrf();
+        Browser g = googleSignup("198.51.100.58", HONG);
         g.perform(delete(DISCONNECT)).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("LAST_IDENTITY"));
         g.get(IDENTITIES).andExpect(jsonPath("$.length()").value(1));
 
@@ -427,9 +522,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     @Test
     @DisplayName("AC4: 다시 로그인 창의 [Google로 계속하기] — popup=true면 결과를 /login/google-done(실패면 ?error=)로 보내고, 같은 계정이면 쓰던 저장을 이어서 할 수 있다")
     void popupReLogin() throws Exception {
-        Browser b = browser("198.51.100.60");
-        callback(b, start(b, START), HONG, Tamper.NONE);
-        b.withCsrf();
+        Browser b = googleSignup("198.51.100.60", HONG);
 
         endAllSessions(); // 작성 중 로그인 만료
         String category = "{\"name\":\"이어서 저장\"}";
@@ -444,6 +537,15 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     }
 
     // ------------------------------------------------------------------ 도우미
+
+    /** 구글로 가입 (D-083: 콜백 → 확인 화면 /signup/google → 가입하기) — 로그인되고 CSRF 쿠키가 있는 브라우저 */
+    private Browser googleSignup(String ip, GoogleUser user) throws Exception {
+        Browser b = browser(ip);
+        assertThat(callback(b, start(b, START), user, Tamper.NONE)).isEqualTo(FE + "/signup/google");
+        b.withCsrf();
+        b.postJson(SIGNUP_GOOGLE, "{\"name\":\"" + user.name() + "\",\"ageOver14\":true}").andExpect(status().isCreated());
+        return b;
+    }
 
     /** 시작 주소를 열면 구글 로그인 화면으로 302 — 그 주소 */
     private static String start(Browser b, String url) throws Exception {

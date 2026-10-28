@@ -354,7 +354,7 @@ class US37MyAccountAcceptanceTest extends BrowserAcceptanceTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_identities WHERE user_id = ?", Integer.class, hongId)).isZero();
 
         Browser again = browser("203.0.113.45");
-        assertThat(callback(again, start(again, "/api/v1/auth/google"), hong, Tamper.NONE)).isEqualTo(FE + "/");
+        assertThat(callback(again, start(again, "/api/v1/auth/google"), hong, Tamper.NONE)).isEqualTo(FE + "/signup/google"); // 처음 보는 구글 (D-083)
     }
 
     // ------------------------------------------------------------------ 도우미
@@ -388,9 +388,12 @@ class US37MyAccountAcceptanceTest extends BrowserAcceptanceTest {
         return token;
     }
 
+    /** 구글로 가입 (D-083: 콜백 → 확인 화면 /signup/google → 가입하기) — 로그인된 브라우저 */
     private Browser googleSignup(GoogleUser user, String ip) throws Exception {
         Browser g = browser(ip);
-        assertThat(callback(g, start(g, "/api/v1/auth/google"), user, Tamper.NONE)).isEqualTo(FE + "/");
+        assertThat(callback(g, start(g, "/api/v1/auth/google"), user, Tamper.NONE)).isEqualTo(FE + "/signup/google");
+        g.withCsrf();
+        g.postJson("/api/v1/auth/google/signup", "{\"name\":\"" + user.name() + "\",\"ageOver14\":true}").andExpect(status().isCreated());
         return g;
     }
 
