@@ -31,11 +31,13 @@ class GoogleLoginHandler implements AuthenticationSuccessHandler, Authentication
     private final GoogleAccounts accounts;
     private final DeviceSessions deviceSessions;
     private final GoogleFlow.Redirects redirects;
+    private final GoogleSignupService signups;
 
-    GoogleLoginHandler(GoogleAccounts accounts, DeviceSessions deviceSessions, GoogleFlow.Redirects redirects) {
+    GoogleLoginHandler(GoogleAccounts accounts, DeviceSessions deviceSessions, GoogleFlow.Redirects redirects, GoogleSignupService signups) {
         this.accounts = accounts;
         this.deviceSessions = deviceSessions;
         this.redirects = redirects;
+        this.signups = signups;
     }
 
     @Override
@@ -70,6 +72,13 @@ class GoogleLoginHandler implements AuthenticationSuccessHandler, Authentication
 
     private String login(OAuth2AuthorizationRequest started, GoogleProfile google, HttpServletRequest request, HttpServletResponse response) {
         GoogleAccounts.LoginResult result = accounts.login(google, request);
+        if (result.signupNeeded()) { // 처음 보는 구글 (D-083)
+            if (popup(started)) {
+                return failure(started, GoogleFlow.GOOGLE_NOT_REGISTERED);
+            }
+            signups.hold(google, started.getAttribute(GoogleFlow.NEXT), request);
+            return redirects.signupConfirm();
+        }
         if (result.userId() == null) {
             return failure(started, result.error());
         }

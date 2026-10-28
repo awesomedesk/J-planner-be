@@ -26,6 +26,8 @@ public enum ErrorCode {
     PASSWORD_REJECTED(HttpStatus.BAD_REQUEST, "쓸 수 없는 비밀번호예요."),
     /** 메일 링크가 없거나 만료·이미 사용됨 — 구분하지 않는다 (08 13-6) */
     TOKEN_INVALID(HttpStatus.BAD_REQUEST, "링크가 만료됐거나 이미 사용됐어요. 처음부터 다시 해 주세요."),
+    /** 구글 가입 확인 화면(D-083)의 대기 정보가 없음 — 10분 지남·다른 브라우저·이미 가입함. 구글로 처음부터 */
+    GOOGLE_SIGNUP_EXPIRED(HttpStatus.BAD_REQUEST, "시간이 지나 다시 해야 해요. 구글로 다시 시작해 주세요."),
     /** 가입하려는 이메일이 이미 회원. 응답에 loginMethods (08 13-3) */
     EMAIL_ALREADY_REGISTERED(HttpStatus.CONFLICT, "이미 가입된 이메일이에요"),
     /** 마지막 로그인 수단은 해제할 수 없다 — 비밀번호 없이 구글만 있는 계정의 구글 해제 (08 13-4) */

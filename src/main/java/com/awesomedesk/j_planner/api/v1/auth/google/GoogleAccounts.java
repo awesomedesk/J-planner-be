@@ -26,7 +26,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 구글 계정 규칙 (US-36, 08 13-5, D-061: 합치기 없음, 연결은 내 계정에서만).
  * <table>
  *   <tr><td>연결된 구글(sub)</td><td>그 회원으로 로그인 (정지면 ACCOUNT_SUSPENDED)</td></tr>
- *   <tr><td>처음 보는 구글 + 같은 이메일 회원 없음 + email_verified</td><td>새 회원 + 연결 + 기본 데이터, 같은 이메일 임시 가입은 지움</td></tr>
+ *   <tr><td>처음 보는 구글 + 같은 이메일 회원 없음 + email_verified</td><td>가입 확인 화면 /signup/google (D-083) → [가입하기]에서
+ *       새 회원 + 연결 + 기본 데이터, 같은 이메일 임시 가입은 지움. 다시 로그인 팝업이면 가입하지 않고 GOOGLE_NOT_REGISTERED</td></tr>
  *   <tr><td>처음 보는 구글 + 같은 이메일 회원 있음</td><td>새 계정 안 만듦 → GOOGLE_EMAIL_ACCOUNT_EXISTS</td></tr>
  *   <tr><td>email_verified 아님·이메일 없음</td><td>GOOGLE_FAILED</td></tr>
  * </table>
@@ -48,21 +49,29 @@ public class GoogleAccounts {
     private final AuditLogger audit;
     private final AuthMailer mailer;
     private final TransactionTemplate transaction;
+    private final com.awesomedesk.j_planner.api.v1.auth.LoginMethods loginMethods;
     private final Clock clock;
 
-    /** 구글 로그인 결과: 로그인할 회원 또는 FE에 보낼 오류 코드 */
-    record LoginResult(Long userId, String error) {
+    /** 구글 로그인 결과: 로그인할 회원, 가입 확인이 필요함(D-083), 또는 FE에 보낼 오류 코드 */
+    record LoginResult(Long userId, boolean signupNeeded, String error) {
 
         static LoginResult ok(long userId) {
-            return new LoginResult(userId, null);
+            return new LoginResult(userId, false, null);
+        }
+
+        static LoginResult needsSignup() {
+            return new LoginResult(null, true, null);
         }
 
         static LoginResult fail(String error) {
-            return new LoginResult(null, error);
+            return new LoginResult(null, false, error);
         }
     }
 
-    /** 구글에서 돌아온 사람을 회원으로 바꾼다 (로그인할 회원을 찾거나 새로 만듦). 세션은 부른 쪽이 만든다 */
+    /**
+     * 구글에서 돌아온 사람: 연결된 회원이면 로그인할 회원, 처음 보는 구글이면 가입 확인 화면이 필요한지(D-083) 또는 오류.
+     * 회원은 여기서 만들지 않는다 — 확인 화면의 [가입하기]({@link GoogleSignupService})에서 만든다.
+     */
     LoginResult login(GoogleProfile google, HttpServletRequest http) {
         Long linked = identities.findUserBySubject(google.sub());
         if (linked != null) {
@@ -77,19 +86,44 @@ public class GoogleAccounts {
             return LoginResult.fail(GoogleFlow.GOOGLE_FAILED);
         }
         // TODO(US-38) 휴면 회원 이메일(dormant_profiles.email)도 '이미 가입됨'
-        Long userId;
-        try {
-            userId = transaction.execute(status -> signup(google));
-        } catch (DuplicateKeyException race) { // 같은 구글·이메일로 동시에 가입
-            log.info("구글 가입 겹침: {}", EmailMasker.mask(google.email()));
-            return LoginResult.fail(GoogleFlow.GOOGLE_FAILED);
-        }
-        if (userId == null) {
+        if (emailTaken(google.email())) {
             log.info("구글 가입 거절 — 같은 이메일 회원 있음: {}", EmailMasker.mask(google.email()));
             return LoginResult.fail(GoogleFlow.GOOGLE_EMAIL_ACCOUNT_EXISTS);
         }
-        audit.user(userId, AuditEvent.SIGNUP_COMPLETED, http, GOOGLE_METHOD);
-        return LoginResult.ok(userId);
+        return LoginResult.needsSignup();
+    }
+
+    /**
+     * 확인 화면의 [가입하기] (D-083): 새 회원 + 구글 연결 + 기본 데이터, 같은 이메일 임시 가입 삭제 (한 트랜잭션) + 감사 기록.
+     *
+     * @return 새 회원 번호. 같은 구글이 그 사이 가입했으면 null
+     * @throws com.awesomedesk.j_planner.common.error.EmailAlreadyRegisteredException 그 사이 같은 이메일 회원이 생김
+     */
+    Long completeSignup(GoogleProfile google, String name, HttpServletRequest http) {
+        Long userId;
+        try {
+            userId = transaction.execute(status -> {
+                if (identities.findUserBySubject(google.sub()) != null) {
+                    return null;
+                }
+                Long sameEmail = jdbc.query("SELECT user_id FROM users WHERE email = ?", rs -> rs.next() ? rs.getLong(1) : null, google.email());
+                if (sameEmail != null) {
+                    throw new com.awesomedesk.j_planner.common.error.EmailAlreadyRegisteredException(loginMethods.forConflict(sameEmail));
+                }
+                return signup(google, name);
+            });
+        } catch (DuplicateKeyException race) { // 같은 구글·이메일로 동시에 가입
+            log.info("구글 가입 겹침: {}", EmailMasker.mask(google.email()));
+            return null;
+        }
+        if (userId != null) {
+            audit.user(userId, AuditEvent.SIGNUP_COMPLETED, http, GOOGLE_METHOD);
+        }
+        return userId;
+    }
+
+    private boolean emailTaken(String email) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE email = ?", Integer.class, email) > 0;
     }
 
     /** 로그인 세션을 만든 뒤: 마지막 로그인 시각 + 감사 기록 */
@@ -178,23 +212,19 @@ public class GoogleAccounts {
         sendQuietly(() -> mailer.sendGoogleUnlinked(member.email(), member.name()), member.email());
     }
 
-    /** 새 회원 + 구글 연결 + 기본 데이터 (한 트랜잭션). 같은 이메일 회원이 있으면 null */
-    private Long signup(GoogleProfile google) {
+    /** 새 회원 + 구글 연결 + 기본 데이터 (트랜잭션 안에서 부른다) */
+    private long signup(GoogleProfile google, String name) {
         String email = google.email();
-        if (jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE email = ?", Integer.class, email) > 0) {
-            return null;
-        }
         jdbc.update("DELETE FROM pending_signups WHERE email = ?", email); // D-061: 임시 가입 중이면 지우고 구글로 가입 (이전 링크 무효)
         LocalDateTime now = now();
-        jdbc.update("INSERT INTO users (email, name, status, created_at, updated_at) VALUES (?, ?, 'ACTIVE', ?, ?)",
-            email, displayName(google), now, now);
+        jdbc.update("INSERT INTO users (email, name, status, created_at, updated_at) VALUES (?, ?, 'ACTIVE', ?, ?)", email, name, now, now);
         long userId = jdbc.queryForObject("SELECT user_id FROM users WHERE email = ?", Long.class, email);
         userDataInitializer.createDefaults(userId);
         identities.insertGoogle(userId, google.sub(), email, now);
         return userId;
     }
 
-    /** 이름 = 구글 이름(앞뒤 공백 정리). 없으면 이메일 @ 앞부분. 50자(코드 포인트)까지 */
+    /** 확인 화면에 채워 둘 이름 (D-082 1번·D-083) = 구글 이름(앞뒤 공백 정리). 없으면 이메일 @ 앞부분. 50자(코드 포인트)까지 */
     static String displayName(GoogleProfile google) {
         String name = google.name() == null ? "" : google.name().strip();
         if (name.isEmpty()) {

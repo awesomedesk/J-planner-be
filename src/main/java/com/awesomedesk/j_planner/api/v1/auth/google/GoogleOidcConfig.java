@@ -81,8 +81,9 @@ public class GoogleOidcConfig {
     }
 
     @Bean
-    GoogleLoginHandler googleLoginHandler(GoogleAccounts accounts, DeviceSessions deviceSessions, GoogleFlow.Redirects redirects) {
-        return new GoogleLoginHandler(accounts, deviceSessions, redirects);
+    GoogleLoginHandler googleLoginHandler(GoogleAccounts accounts, DeviceSessions deviceSessions, GoogleFlow.Redirects redirects,
+                                          GoogleSignupService signups) {
+        return new GoogleLoginHandler(accounts, deviceSessions, redirects, signups);
     }
 
     /** SecurityConfig의 oauth2Login 설정 */

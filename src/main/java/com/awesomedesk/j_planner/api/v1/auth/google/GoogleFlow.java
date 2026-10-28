@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
  * <ul>
  *   <li>로그인: {@code GET /api/v1/auth/google[?next=/경로 | ?popup=true]} → 구글 → 콜백 → FE {@code next 또는 /}, 실패 {@code /login?error=코드}</li>
  *   <li>팝업(작성 중 '다시 로그인' 창, AC4): 결과를 {@code /login/google-done[?error=코드]}로 — FE가 팝업을 닫고 원래 창이 GET /me로 계정을 확인</li>
+ *   <li>처음 보는 구글(D-083): FE {@code /signup/google} → {@code GET·POST /api/v1/auth/google/signup}. 팝업이면 {@code /login/google-done?error=GOOGLE_NOT_REGISTERED}</li>
  *   <li>연결: {@code GET /api/v1/me/identities/google/connect} → 구글 → 콜백 → FE {@code /me?linked=google}, 실패 {@code /me?error=코드}</li>
  *   <li>재인증(US-37): {@code GET /api/v1/me/reauth/google} → 구글(prompt=login, max_age=0) → 콜백 → FE {@code /me?reauth=google}, 실패 {@code /me?error=코드}</li>
  * </ul>
@@ -32,6 +33,8 @@ public final class GoogleFlow {
     static final String GOOGLE_EMAIL_ACCOUNT_EXISTS = "GOOGLE_EMAIL_ACCOUNT_EXISTS";
     static final String GOOGLE_ALREADY_LINKED = "GOOGLE_ALREADY_LINKED";
     static final String ACCOUNT_SUSPENDED = "ACCOUNT_SUSPENDED";
+    /** 다시 로그인 팝업에서 처음 보는 구글 — 팝업에서는 가입하지 않는다 (D-083, FE 질문 A안) */
+    static final String GOOGLE_NOT_REGISTERED = "GOOGLE_NOT_REGISTERED";
     /** 재인증을 이 회원에 연결된 구글이 아닌 다른 구글로 함 (US-37) */
     static final String GOOGLE_ACCOUNT_MISMATCH = "GOOGLE_ACCOUNT_MISMATCH";
 
@@ -87,6 +90,11 @@ public final class GoogleFlow {
                 return webBaseUrl + "/login/google-done?error=" + code;
             }
             return webBaseUrl + "/login?error=" + code + (next == null ? "" : "&next=" + URLEncoder.encode(next, StandardCharsets.UTF_8));
+        }
+
+        /** 처음 보는 구글 → 가입 확인 화면 (D-083, 06 SITE-05g) */
+        String signupConfirm() {
+            return webBaseUrl + "/signup/google";
         }
 
         String connectSuccess() {
