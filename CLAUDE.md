@@ -15,6 +15,16 @@ J-planner is a Spring Boot application designed for MBTI 'J' personality types, 
 - Before implementing a feature, check `../j-planner-product/02-requirements.md` (requirement IDs, status) and `03-decisions.md` (confirmed decisions).
 - Do not add planning documents to this repository.
 
+## Requests and questions to the owner (대표님) — dashboard only (D-084)
+
+- Every request, question or confirmation for the owner goes to the **dashboard** (작업판) as a message with `to: "대표님"` — https://claude.ai/artifact/RndcigKk12Aagtk84Zuick, collection `messages`, format in `../j-planner-product/00-working-rules.md` section 0. In the chat, only say that it was posted plus a one-line summary.
+  - Question: `kind: question`, with the options, the recommendation, by when, and how to answer (e.g. "reply ① or ②").
+  - Request (something the owner must do): `kind: ask` (or `info`), with step-by-step instructions and how to report the result.
+  - DB work for the owner: give **SQL to paste into Beekeeper Studio** (start with `USE jp;`, delete children before `users`, end with a checking `SELECT`) — not `docker exec … mysql -e` commands.
+- Exception 1 — secrets: never write passwords, tokens or keys on the dashboard (00 section 9). If a value is needed, write "please tell me in the chat" on the dashboard and take the value in the chat.
+- Exception 2 — the "new window" command (00 section 8): give it in the chat (the owner pastes it) and also leave the same text on the dashboard.
+- Messages to other windows (PO, FE, ADMIN) also go through the dashboard, never through the owner.
+
 ## Build Commands
 
 - **Build**: `./gradlew build`
