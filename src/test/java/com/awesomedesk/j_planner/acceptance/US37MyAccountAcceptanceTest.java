@@ -12,7 +12,6 @@ import com.awesomedesk.j_planner.api.v1.auth.SignupTokens;
 import com.awesomedesk.j_planner.support.FakeGoogle;
 import com.awesomedesk.j_planner.support.FakeGoogle.GoogleUser;
 import com.awesomedesk.j_planner.support.FakeGoogle.Tamper;
-import com.awesomedesk.j_planner.support.FakeBreachedPasswords;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -225,7 +224,7 @@ class US37MyAccountAcceptanceTest extends BrowserAcceptanceTest {
     void passwordRules() throws Exception {
         Browser b = login(KIM, PW, "203.0.113.24");
         reauth(b);
-        for (String bad : List.of("short-pass", "a".repeat(129), FakeBreachedPasswords.LEAKED)) {
+        for (String bad : List.of("short-pass", "a".repeat(129), "password1234567890")) {
             putJson(b, PASSWORD, "{\"newPassword\":\"" + bad + "\"}").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("PASSWORD_REJECTED")).andExpect(jsonPath("$.errors[0].field").value("newPassword"));
         }

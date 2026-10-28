@@ -1,7 +1,5 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
-import com.awesomedesk.j_planner.api.v1.auth.google.UserIdentities;
-import com.awesomedesk.j_planner.api.v1.me.LoginMethod;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
 import com.awesomedesk.j_planner.common.error.ApiException;
@@ -45,8 +43,7 @@ public class SignupService {
 
     private final JdbcTemplate jdbc;
     private final PendingSignups pendingSignups;
-    private final PasswordCredentials passwordCredentials;
-    private final UserIdentities identities;
+    private final LoginMethods loginMethods;
     private final PasswordPolicy passwordPolicy;
     private final PasswordEncoder encoder;
     private final AuthMailer mailer;
@@ -55,14 +52,12 @@ public class SignupService {
     private final Clock clock;
     private final String webBaseUrl;
 
-    public SignupService(JdbcTemplate jdbc, PendingSignups pendingSignups, PasswordCredentials passwordCredentials, UserIdentities identities,
-                         PasswordPolicy passwordPolicy, PasswordEncoder encoder,
+    public SignupService(JdbcTemplate jdbc, PendingSignups pendingSignups, LoginMethods loginMethods, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
                          AuthMailer mailer, RateLimits rateLimits, AuditLogger audit, Clock clock,
                          @Value("${app.web.base-url}") String webBaseUrl) {
         this.jdbc = jdbc;
         this.pendingSignups = pendingSignups;
-        this.passwordCredentials = passwordCredentials;
-        this.identities = identities;
+        this.loginMethods = loginMethods;
         this.passwordPolicy = passwordPolicy;
         this.encoder = encoder;
         this.mailer = mailer;
@@ -106,7 +101,7 @@ public class SignupService {
         Long userId = jdbc.query("SELECT user_id FROM users WHERE email = ?", rs -> rs.next() ? rs.getLong(1) : null, email);
         // TODO(US-38) 휴면 회원 이메일(dormant_profiles.email)도 '이미 가입됨'
         if (userId != null) {
-            throw new EmailAlreadyRegisteredException(loginMethods(userId));
+            throw new EmailAlreadyRegisteredException(loginMethods.forConflict(userId));
         }
 
         LocalDateTime now = now();
@@ -147,22 +142,6 @@ public class SignupService {
             throw new ApiException(ErrorCode.TOKEN_INVALID);
         }
         audit.user(userId, AuditEvent.SIGNUP_COMPLETED, http, Map.of("method", "EMAIL"));
-    }
-
-    /**
-     * 409 안내의 로그인 방법 (08 13-3, D-076): EMAIL = 비밀번호가 있거나 구글도 없는 이메일 계정(비밀번호가 아직 없는 admin도
-     * [로그인]/[비밀번호 찾기]), GOOGLE = 구글 연결 있음. 구글로 가입해 비밀번호가 없으면 GOOGLE만
-     */
-    private List<String> loginMethods(long userId) {
-        boolean google = identities.hasGoogle(userId);
-        List<String> methods = new ArrayList<>();
-        if (passwordCredentials.exists(userId) || !google) {
-            methods.add(LoginMethod.EMAIL.name());
-        }
-        if (google) {
-            methods.add(LoginMethod.GOOGLE.name());
-        }
-        return methods;
     }
 
     private void send(String email, String name, String token) {

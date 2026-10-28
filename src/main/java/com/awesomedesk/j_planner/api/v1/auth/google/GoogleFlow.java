@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
  *   <li>로그인: {@code GET /api/v1/auth/google[?next=/경로 | ?popup=true]} → 구글 → 콜백 → FE {@code next 또는 /}, 실패 {@code /login?error=코드}</li>
  *   <li>팝업(작성 중 '다시 로그인' 창, AC4): 결과를 {@code /login/google-done[?error=코드]}로 — FE가 팝업을 닫고 원래 창이 GET /me로 계정을 확인</li>
  *   <li>연결: {@code GET /api/v1/me/identities/google/connect} → 구글 → 콜백 → FE {@code /me?linked=google}, 실패 {@code /me?error=코드}</li>
+ *   <li>재인증(US-37): {@code GET /api/v1/me/reauth/google} → 구글(prompt=login, max_age=0) → 콜백 → FE {@code /me?reauth=google}, 실패 {@code /me?error=코드}</li>
  * </ul>
  * 콜백 주소는 하나(redirect URI 정확히 일치): {@code <app.web.base-url>/api/v1/auth/google/callback} — FE와 API가 같은 주소라 FE 주소 + 경로 (13-1).
  */
@@ -18,6 +19,7 @@ public final class GoogleFlow {
     public static final String START_PATH = "/api/v1/auth/google";
     public static final String CONNECT_PATH = "/api/v1/me/identities/google/connect";
     public static final String CALLBACK_PATH = "/api/v1/auth/google/callback";
+    public static final String REAUTH_PATH = "/api/v1/me/reauth/google";
 
     /** 구글 왕복 동안 기억하는 값 (인가 요청의 attributes — 로그인 전 세션에 저장됨) */
     static final String PURPOSE = "jp.purpose";
@@ -30,12 +32,15 @@ public final class GoogleFlow {
     static final String GOOGLE_EMAIL_ACCOUNT_EXISTS = "GOOGLE_EMAIL_ACCOUNT_EXISTS";
     static final String GOOGLE_ALREADY_LINKED = "GOOGLE_ALREADY_LINKED";
     static final String ACCOUNT_SUSPENDED = "ACCOUNT_SUSPENDED";
+    /** 재인증을 이 회원에 연결된 구글이 아닌 다른 구글로 함 (US-37) */
+    static final String GOOGLE_ACCOUNT_MISMATCH = "GOOGLE_ACCOUNT_MISMATCH";
 
     private static final int NEXT_MAX = 512;
 
     enum Purpose {
         LOGIN,
-        CONNECT
+        CONNECT,
+        REAUTH
     }
 
     private GoogleFlow() {
@@ -86,6 +91,10 @@ public final class GoogleFlow {
 
         String connectSuccess() {
             return webBaseUrl + "/me?linked=google";
+        }
+
+        String reauthSuccess() {
+            return webBaseUrl + "/me?reauth=google";
         }
 
         String connectFailure(String code) {

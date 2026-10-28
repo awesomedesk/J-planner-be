@@ -1,6 +1,10 @@
 package com.awesomedesk.j_planner.api.v1.me;
 
+import com.awesomedesk.j_planner.api.v1.auth.EmailChangeService;
+import com.awesomedesk.j_planner.api.v1.auth.EmailRequest;
+import com.awesomedesk.j_planner.api.v1.auth.PasswordChangeService;
 import com.awesomedesk.j_planner.api.v1.auth.ReauthService;
+import com.awesomedesk.j_planner.api.v1.auth.TokenRequest;
 import com.awesomedesk.j_planner.api.v1.auth.google.GoogleAccounts;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
@@ -15,6 +19,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,7 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 내 계정 API (로그인 필요). 명세: 08-api-design.md 13-4.
- * US-34: 내 정보, 다른 기기 모두 로그아웃. US-36: 재인증(비밀번호), 연결된 구글 목록·연결 시작·해제
+ * US-34: 내 정보, 다른 기기 모두 로그아웃. US-36: 재인증(비밀번호), 연결된 구글 목록·연결 시작·해제.
+ * US-37: 이름·이메일·비밀번호 변경, 구글 재인증, 로그인 기기 목록·원격 로그아웃, 탈퇴
  */
 @RestController
 @RequestMapping("/api/v1/me")
@@ -33,15 +41,22 @@ public class MeController {
     private final AuditLogger audit;
     private final ReauthService reauthService;
     private final GoogleAccounts googleAccounts;
+    private final EmailChangeService emailChangeService;
+    private final PasswordChangeService passwordChangeService;
+    private final AccountDeletionService accountDeletionService;
     private final String webBaseUrl;
 
     public MeController(MeService meService, DeviceSessions deviceSessions, AuditLogger audit, ReauthService reauthService,
-                        GoogleAccounts googleAccounts, @Value("${app.web.base-url}") String webBaseUrl) {
+                        GoogleAccounts googleAccounts, EmailChangeService emailChangeService, PasswordChangeService passwordChangeService,
+                        AccountDeletionService accountDeletionService, @Value("${app.web.base-url}") String webBaseUrl) {
         this.meService = meService;
         this.deviceSessions = deviceSessions;
         this.audit = audit;
         this.reauthService = reauthService;
         this.googleAccounts = googleAccounts;
+        this.emailChangeService = emailChangeService;
+        this.passwordChangeService = passwordChangeService;
+        this.accountDeletionService = accountDeletionService;
         this.webBaseUrl = webBaseUrl.endsWith("/") ? webBaseUrl.substring(0, webBaseUrl.length() - 1) : webBaseUrl;
     }
 
@@ -86,6 +101,66 @@ public class MeController {
     @DeleteMapping("/identities/google")
     public ResponseEntity<Void> disconnectGoogle(AuthUser user, HttpServletRequest http) {
         googleAccounts.disconnect(user.userId(), http);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 이름 변경 (재인증 없이) */
+    @PatchMapping
+    public MeResponse update(AuthUser user, @RequestBody MeUpdateRequest request) {
+        return meService.updateName(user.userId(), request.name());
+    }
+
+    /** 이메일 변경 요청 (재인증) → 202, 새 주소로 인증 링크 + 기존 주소 알림. 인증 전까지 이메일 그대로 */
+    @PutMapping("/email")
+    public ResponseEntity<Void> changeEmail(AuthUser user, @RequestBody EmailRequest request, HttpServletRequest http) {
+        emailChangeService.request(user.userId(), request.email(), http);
+        return ResponseEntity.accepted().build();
+    }
+
+    /** 새 이메일 인증 (로그인 없이, SecurityConfig) → 204, 이메일 바뀜 + 모든 기기 로그아웃 */
+    @PostMapping("/email/verify")
+    public ResponseEntity<Void> verifyEmail(@RequestBody TokenRequest request, HttpServletRequest http) {
+        emailChangeService.verify(request, http);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 비밀번호 변경·추가 (재인증) → 204, 다른 기기 로그아웃 + 알림 메일 */
+    @PutMapping("/password")
+    public ResponseEntity<Void> changePassword(AuthUser user, @RequestBody NewPasswordRequest request, HttpServletRequest http) {
+        passwordChangeService.change(user.userId(), request.newPassword(), http);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 구글 재인증 시작. 보통은 Spring Security 필터가 구글로 302를 보내 여기까지 오지 않는다.
+     * 여기에 왔다 = 구글이 연결돼 있지 않음(404) 또는 구글 설정이 없음(/me?error=GOOGLE_FAILED)
+     */
+    @GetMapping("/reauth/google")
+    public ResponseEntity<Void> reauthGoogle(AuthUser user) {
+        googleAccounts.checkReauth(user.userId());
+        return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(webBaseUrl + "/me?error=GOOGLE_FAILED")).build();
+    }
+
+    /** 로그인 기기 목록 (최근에 쓴 기기부터) */
+    @GetMapping("/sessions")
+    public List<DeviceSessionResponse> sessions(AuthUser user, HttpServletRequest http) {
+        return deviceSessions.list(user.userId(), http).stream().map(DeviceSessionResponse::from).toList();
+    }
+
+    /** 그 기기 로그아웃. 내 기기가 아니거나 없으면 404 */
+    @DeleteMapping("/sessions/{sessionId}")
+    public ResponseEntity<Void> logoutDevice(AuthUser user, @PathVariable String sessionId, HttpServletRequest http) {
+        if (!deviceSessions.endOne(user.userId(), sessionId, http)) {
+            throw new com.awesomedesk.j_planner.common.error.ApiException(com.awesomedesk.j_planner.common.error.ErrorCode.NOT_FOUND);
+        }
+        audit.user(user.userId(), AuditEvent.LOGOUT_OTHERS, http, Map.of("count", "1"));
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 탈퇴 (재인증) → 204, 모든 기기 로그아웃 + 데이터 즉시 삭제 */
+    @DeleteMapping
+    public ResponseEntity<Void> delete(AuthUser user, HttpServletRequest http) {
+        accountDeletionService.delete(user.userId(), http);
         return ResponseEntity.noContent().build();
     }
 }

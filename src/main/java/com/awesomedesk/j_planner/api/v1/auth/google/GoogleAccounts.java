@@ -130,6 +130,33 @@ public class GoogleAccounts {
         reauthentication.require(http);
     }
 
+    /** 구글 재인증 시작 전 확인: 연결된 구글이 없으면 404 (비밀번호 재인증을 쓰면 된다) */
+    public void checkReauth(long userId) {
+        if (!identities.hasGoogle(userId)) {
+            throw new ApiException(ErrorCode.NOT_FOUND);
+        }
+    }
+
+    /**
+     * 구글 재인증 콜백 (US-37): 이 회원에 연결된 구글(sub)이고, 방금(5분 안) 구글에서 다시 로그인했으면 이 기기를 재인증.
+     * 구글이 준 auth_time은 구글 시계라 서버의 실제 시각과 비교한다.
+     *
+     * @return null = 재인증됨, 아니면 FE에 보낼 오류 코드
+     */
+    String reauth(long userId, GoogleProfile google, java.time.Instant authTime, HttpServletRequest http) {
+        Long owner = identities.findUserBySubject(google.sub());
+        if (owner == null || owner != userId) {
+            return GoogleFlow.GOOGLE_ACCOUNT_MISMATCH;
+        }
+        java.time.Instant now = java.time.Instant.now();
+        if (authTime == null || authTime.isBefore(now.minus(Reauthentication.VALID_FOR)) || authTime.isAfter(now.plusSeconds(60))) {
+            log.info("구글 재인증 거절: 구글에서 다시 로그인하지 않음(auth_time)");
+            return GoogleFlow.GOOGLE_FAILED;
+        }
+        reauthentication.mark(http);
+        return null;
+    }
+
     /** 내 계정의 연결 목록 (지금은 구글 0~1개) */
     public List<UserIdentities.Identity> list(long userId) {
         UserIdentities.Identity google = identities.findGoogle(userId);

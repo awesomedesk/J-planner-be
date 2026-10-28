@@ -44,6 +44,8 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/health", "/api/v1/auth/**").permitAll()
+                // 새 이메일 인증 링크(US-37)는 메일을 다른 기기에서 열 수 있어 로그인 없이
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/me/email/verify").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll())
             .exceptionHandling(e -> e

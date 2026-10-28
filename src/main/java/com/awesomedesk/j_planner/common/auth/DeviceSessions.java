@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,74 @@ public class DeviceSessions {
             }
         }
         return count;
+    }
+
+    /**
+     * 그 회원의 모든 기기 로그아웃 + 이 요청의 세션도 (이메일 변경·탈퇴, US-37).
+     * 이 요청이 쓰는 세션은 저장소에서만 지우면 요청이 끝날 때 다시 저장되므로 invalidate로 끝낸다.
+     */
+    public int endAll(long userId, HttpServletRequest request) {
+        HttpSession current = request.getSession(false);
+        if (current != null && String.valueOf(userId).equals(current.getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME))) {
+            current.invalidate();
+            SecurityContextHolder.clearContext();
+        }
+        return endAll(userId);
+    }
+
+    /** 로그인 기기 목록 (US-37 GET /me/sessions). 최근에 쓴 기기부터 */
+    public List<Device> list(long userId, HttpServletRequest request) {
+        String currentId = request.getSession(false) == null ? null : request.getSession(false).getId();
+        return sessions.findByPrincipalName(String.valueOf(userId)).values().stream()
+            .sorted(Comparator.comparing(Session::getLastAccessedTime).reversed())
+            .map(session -> new Device(publicId(session.getId()), session.getAttribute(USER_AGENT), toLocal(session.getAttribute(LOGIN_AT)),
+                LocalDateTime.ofInstant(session.getLastAccessedTime(), clock.getZone()).withNano(0), session.getAttribute(IP),
+                session.getId().equals(currentId)))
+            .toList();
+    }
+
+    /**
+     * 그 기기 로그아웃 (US-37 DELETE /me/sessions/{id}). id = {@link #publicId} — 세션 ID 자체는 밖에 내보내지 않는다.
+     *
+     * @return 찾아서 끝냈으면 true (내 기기가 아니거나 없으면 false)
+     */
+    public boolean endOne(long userId, String deviceId, HttpServletRequest request) {
+        for (String id : sessions.findByPrincipalName(String.valueOf(userId)).keySet()) {
+            if (publicId(id).equals(deviceId)) {
+                HttpSession current = request.getSession(false);
+                if (current != null && current.getId().equals(id)) {
+                    end(request);
+                } else {
+                    sessions.deleteById(id);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 기기 id = SHA-256("jp-device:" + 세션 ID)의 앞 16바이트 base64url — 세션 ID(쿠키 값)를 JS에 보이지 않게 */
+    static String publicId(String sessionId) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(("jp-device:" + sessionId).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(java.util.Arrays.copyOf(digest, 16));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private LocalDateTime toLocal(Object millis) {
+        return millis instanceof Long at ? LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(at), clock.getZone()).withNano(0) : null;
+    }
+
+    /**
+     * 로그인 기기 하나
+     *
+     * @param userAgent 로그인할 때의 User-Agent (기기 이름은 {@link UserAgents})
+     * @param ip        로그인할 때의 IP (보여 줄 때는 앞부분만)
+     */
+    public record Device(String id, String userAgent, LocalDateTime loggedInAt, LocalDateTime lastUsedAt, String ip, boolean current) {
     }
 
     /** 그 회원의 모든 기기 로그아웃 (비밀번호 재설정·변경, 이메일 변경, 탈퇴 — 08 13-1). 지운 수 */

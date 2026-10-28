@@ -22,6 +22,7 @@ import org.springframework.session.FindByIndexNameSessionRepository;
  * <ul>
  *   <li>로그인: 회원을 찾거나 만들어 로그인 → FE {@code next 또는 /}(팝업이면 /login/google-done). 안 되면 /login?error=코드</li>
  *   <li>연결: 시작한 회원이 아직 이 세션에 로그인해 있을 때만 연결 → /me?linked=google, 안 되면 /me?error=코드</li>
+ *   <li>재인증(US-37): 시작한 회원의 구글 + 방금 다시 로그인(auth_time) → 이 기기 재인증 5분 → /me?reauth=google</li>
  * </ul>
  */
 @Slf4j
@@ -49,6 +50,8 @@ class GoogleLoginHandler implements AuthenticationSuccessHandler, Authentication
         try {
             if (purpose(started) == GoogleFlow.Purpose.CONNECT) {
                 response.sendRedirect(connect(started, google, request));
+            } else if (purpose(started) == GoogleFlow.Purpose.REAUTH) {
+                response.sendRedirect(reauth(started, google, oidcUser, request));
             } else {
                 response.sendRedirect(login(started, google, request, response));
             }
@@ -84,15 +87,30 @@ class GoogleLoginHandler implements AuthenticationSuccessHandler, Authentication
         return error == null ? redirects.connectSuccess() : redirects.connectFailure(error);
     }
 
+    private String reauth(OAuth2AuthorizationRequest started, GoogleProfile google, OidcUser oidcUser, HttpServletRequest request) {
+        Long userId = started.getAttribute(GoogleFlow.USER_ID);
+        if (userId == null || !userId.equals(sessionUserId(request))) {
+            return redirects.connectFailure(GoogleFlow.GOOGLE_FAILED);
+        }
+        String error = accounts.reauth(userId, google, oidcUser.getAuthenticatedAt(), request);
+        return error == null ? redirects.reauthSuccess() : redirects.connectFailure(error);
+    }
+
     private String failure(OAuth2AuthorizationRequest started, String code) {
-        if (started != null && purpose(started) == GoogleFlow.Purpose.CONNECT) {
+        if (started != null && purpose(started) != GoogleFlow.Purpose.LOGIN) {
             return redirects.connectFailure(code);
         }
         return redirects.loginFailure(started != null && popup(started), started == null ? null : started.getAttribute(GoogleFlow.NEXT), code);
     }
 
     private static GoogleFlow.Purpose purpose(OAuth2AuthorizationRequest started) {
-        return GoogleFlow.Purpose.CONNECT.name().equals(started.getAttribute(GoogleFlow.PURPOSE)) ? GoogleFlow.Purpose.CONNECT : GoogleFlow.Purpose.LOGIN;
+        Object purpose = started.getAttribute(GoogleFlow.PURPOSE);
+        for (GoogleFlow.Purpose p : GoogleFlow.Purpose.values()) {
+            if (p.name().equals(purpose)) {
+                return p;
+            }
+        }
+        return GoogleFlow.Purpose.LOGIN;
     }
 
     private static boolean popup(OAuth2AuthorizationRequest started) {
