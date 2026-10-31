@@ -1,6 +1,7 @@
 package com.awesomedesk.j_planner.common.metrics;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +15,22 @@ import org.springframework.stereotype.Component;
 public class SecurityMetrics {
 
     private final MeterRegistry registry;
+
+    /** 태그 값마다 0으로 미리 만든다 — Prometheus increase()가 앱을 켠 뒤 첫 1건도 잡게 (ADMIN #300) */
+    @PostConstruct
+    void preRegister() {
+        for (String result : new String[] {"SUCCESS", "FAILED", "LOCKED", "SUSPENDED"}) {
+            for (String method : new String[] {"PASSWORD", "GOOGLE"}) {
+                registry.counter("jp.auth.login", "result", result, "method", method);
+            }
+        }
+        for (String type : new String[] {"SIGNUP", "RESET", "EMAIL_CHANGE", "NOTICE"}) {
+            for (String result : new String[] {"SENT", "FAILED"}) {
+                registry.counter("jp.auth.mail", "type", type, "result", result);
+            }
+        }
+        registry.counter("jp.auth.breach_check_failed");
+    }
 
     /**
      * @param result SUCCESS / FAILED / LOCKED / SUSPENDED
