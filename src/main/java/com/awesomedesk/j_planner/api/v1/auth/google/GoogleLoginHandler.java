@@ -82,9 +82,9 @@ class GoogleLoginHandler implements AuthenticationSuccessHandler, Authentication
         if (result.userId() == null) {
             return failure(started, result.error());
         }
+        boolean restored = accounts.recordLogin(result.userId(), request); // 세션보다 먼저 (휴면 전환과 겹쳐도 안전, US-38)
         deviceSessions.start(result.userId(), request, response);
-        accounts.recordLogin(result.userId(), request);
-        return redirects.loginSuccess(popup(started), started.getAttribute(GoogleFlow.NEXT));
+        return redirects.loginSuccess(popup(started), started.getAttribute(GoogleFlow.NEXT), restored);
     }
 
     private String connect(OAuth2AuthorizationRequest started, GoogleProfile google, HttpServletRequest request) {

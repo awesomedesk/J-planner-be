@@ -92,8 +92,8 @@ public class GoogleSignupService {
             clear(request);
             throw new ApiException(ErrorCode.GOOGLE_SIGNUP_EXPIRED);
         }
-        deviceSessions.start(userId, request, response);
         accounts.recordLogin(userId, request);
+        deviceSessions.start(userId, request, response);
         return meService.get(userId);
     }
 

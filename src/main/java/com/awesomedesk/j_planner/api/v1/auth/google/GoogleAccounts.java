@@ -125,11 +125,15 @@ public class GoogleAccounts {
         return userId;
     }
 
-    /** 로그인 세션을 만든 뒤: 휴면이면 복원(US-38, 정지는 login에서 걸렀다) + 마지막 로그인 시각·휴면 안내 기록 지움 + 감사 기록 */
-    void recordLogin(long userId, HttpServletRequest http) {
-        dormantAccounts.restore(userId, http);
-        jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = NULL WHERE user_id = ?", now(), userId);
+    /**
+     * 로그인 기록 — 세션을 만들기 전에: 휴면이면 복원(US-38, 정지는 login에서 걸렀다) + 마지막 로그인 시각·휴면 안내 기록 지움 + 감사 기록.
+     *
+     * @return 이번에 휴면에서 복원했으면 true
+     */
+    boolean recordLogin(long userId, HttpServletRequest http) {
+        boolean restored = dormantAccounts.recordLogin(userId, http);
         audit.user(userId, AuditEvent.LOGIN, http, GOOGLE_METHOD);
+        return restored;
     }
 
     /**

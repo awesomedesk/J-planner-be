@@ -12,8 +12,6 @@ import com.awesomedesk.j_planner.common.error.TooManyRequestsException;
 import com.awesomedesk.j_planner.common.log.EmailMasker;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -48,7 +46,6 @@ public class LoginService {
     private final AuditLogger audit;
     private final MeService meService;
     private final DormantAccounts dormantAccounts;
-    private final Clock clock;
 
     public LoginResponse login(LoginRequest request, HttpServletRequest http, HttpServletResponse response) {
         String email = request.email().strip().toLowerCase(Locale.ROOT);
@@ -80,9 +77,8 @@ public class LoginService {
         }
 
         rateLimiter.recordSuccess(email);
-        boolean restored = dormantAccounts.restore(member.id(), http);
+        boolean restored = dormantAccounts.recordLogin(member.id(), http); // 휴면이면 복원 + 마지막 로그인 (세션보다 먼저)
         deviceSessions.start(member.id(), http, response);
-        jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = NULL WHERE user_id = ?", LocalDateTime.now(clock).withNano(0), member.id());
         audit.user(userId, AuditEvent.LOGIN, http, PASSWORD);
         return LoginResponse.of(meService.get(member.id()), restored);
     }

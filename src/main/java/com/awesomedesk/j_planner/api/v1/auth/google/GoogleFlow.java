@@ -78,11 +78,13 @@ public final class GoogleFlow {
             return webBaseUrl + CALLBACK_PATH;
         }
 
-        String loginSuccess(boolean popup, String next) {
-            if (popup) {
-                return webBaseUrl + "/login/google-done";
+        /** @param restored 이번 로그인으로 휴면에서 복원됨 → {@code restored=1}을 붙여 FE가 안내 (US-38) */
+        String loginSuccess(boolean popup, String next, boolean restored) {
+            String url = popup ? "/login/google-done" : (next == null ? "/" : next);
+            if (restored) {
+                url += (url.contains("?") ? "&" : "?") + "restored=1";
             }
-            return webBaseUrl + (next == null ? "/" : next);
+            return webBaseUrl + url;
         }
 
         String loginFailure(boolean popup, String next, String code) {

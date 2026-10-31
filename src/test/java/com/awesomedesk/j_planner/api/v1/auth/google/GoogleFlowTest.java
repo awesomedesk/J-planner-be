@@ -35,13 +35,17 @@ class GoogleFlowTest {
     }
 
     @Test
-    @DisplayName("결과 주소: FE 주소 끝의 / 는 하나로, 실패 next는 인코딩, 팝업은 /login/google-done")
+    @DisplayName("결과 주소: FE 주소 끝의 / 는 하나로, 실패 next는 인코딩, 팝업은 /login/google-done, 휴면 복원이면 restored=1")
     void redirects() {
         GoogleFlow.Redirects r = new GoogleFlow.Redirects("https://planner.example.com/");
         assertThat(r.callbackUri()).isEqualTo("https://planner.example.com/api/v1/auth/google/callback");
-        assertThat(r.loginSuccess(false, null)).isEqualTo("https://planner.example.com/");
-        assertThat(r.loginSuccess(false, "/?view=day")).isEqualTo("https://planner.example.com/?view=day");
-        assertThat(r.loginSuccess(true, null)).isEqualTo("https://planner.example.com/login/google-done");
+        assertThat(r.loginSuccess(false, null, false)).isEqualTo("https://planner.example.com/");
+        assertThat(r.loginSuccess(false, "/?view=day", false)).isEqualTo("https://planner.example.com/?view=day");
+        assertThat(r.loginSuccess(true, null, false)).isEqualTo("https://planner.example.com/login/google-done");
+        // 휴면에서 복원 (US-38) → restored=1
+        assertThat(r.loginSuccess(false, null, true)).isEqualTo("https://planner.example.com/?restored=1");
+        assertThat(r.loginSuccess(false, "/?view=day", true)).isEqualTo("https://planner.example.com/?view=day&restored=1");
+        assertThat(r.loginSuccess(true, null, true)).isEqualTo("https://planner.example.com/login/google-done?restored=1");
         assertThat(r.loginFailure(false, "/?view=day", "GOOGLE_FAILED"))
             .isEqualTo("https://planner.example.com/login?error=GOOGLE_FAILED&next=%2F%3Fview%3Dday");
         assertThat(r.loginFailure(true, null, "ACCOUNT_SUSPENDED")).isEqualTo("https://planner.example.com/login/google-done?error=ACCOUNT_SUSPENDED");
