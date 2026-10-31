@@ -13,55 +13,69 @@ public class RecordingMailer implements AuthMailer {
     }
 
     private final List<Sent> sent = new CopyOnWriteArrayList<>();
+    private volatile boolean failNext;
+
+    /** 다음 메일 하나는 보내기에 실패한다 (예외) — 메일 실패 처리·지표 확인용 (US-41) */
+    public void failNext() {
+        failNext = true;
+    }
+
+    private void record(Sent mail) {
+        if (failNext) {
+            failNext = false;
+            throw new IllegalStateException("가짜 메일 실패");
+        }
+        sent.add(mail);
+    }
 
     @Override
     public void sendSignupVerification(String to, String name, String link) {
-        sent.add(new Sent("SIGNUP", to, name, link));
+        record(new Sent("SIGNUP", to, name, link));
     }
 
     @Override
     public void sendPasswordReset(String to, String name, String link) {
-        sent.add(new Sent("RESET", to, name, link));
+        record(new Sent("RESET", to, name, link));
     }
 
     @Override
     public void sendPasswordChanged(String to, String name) {
-        sent.add(new Sent("PASSWORD_CHANGED", to, name, null));
+        record(new Sent("PASSWORD_CHANGED", to, name, null));
     }
 
     @Override
     public void sendGoogleLinked(String to, String name) {
-        sent.add(new Sent("GOOGLE_LINKED", to, name, null));
+        record(new Sent("GOOGLE_LINKED", to, name, null));
     }
 
     @Override
     public void sendGoogleUnlinked(String to, String name) {
-        sent.add(new Sent("GOOGLE_UNLINKED", to, name, null));
+        record(new Sent("GOOGLE_UNLINKED", to, name, null));
     }
 
     @Override
     public void sendEmailChange(String to, String name, String link) {
-        sent.add(new Sent("EMAIL_CHANGE", to, name, link));
+        record(new Sent("EMAIL_CHANGE", to, name, link));
     }
 
     @Override
     public void sendEmailChangeRequested(String to, String name) {
-        sent.add(new Sent("EMAIL_CHANGE_NOTICE", to, name, null));
+        record(new Sent("EMAIL_CHANGE_NOTICE", to, name, null));
     }
 
     @Override
     public void sendAccountDeleted(String to, String name) {
-        sent.add(new Sent("ACCOUNT_DELETED", to, name, null));
+        record(new Sent("ACCOUNT_DELETED", to, name, null));
     }
 
     @Override
     public void sendDormantNotice(String to, String name, LocalDate dormantOn, String link) {
-        sent.add(new Sent("DORMANT_NOTICE", to, name, link));
+        record(new Sent("DORMANT_NOTICE", to, name, link));
     }
 
     @Override
     public void sendDormantRestored(String to, String name) {
-        sent.add(new Sent("DORMANT_RESTORED", to, name, null));
+        record(new Sent("DORMANT_RESTORED", to, name, null));
     }
 
     public List<Sent> sent() {
@@ -80,5 +94,6 @@ public class RecordingMailer implements AuthMailer {
 
     public void clear() {
         sent.clear();
+        failNext = false;
     }
 }

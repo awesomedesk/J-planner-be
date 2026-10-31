@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -54,5 +55,19 @@ class HibpBreachedPasswordsTest {
             throw new IllegalStateException("timeout");
         });
         assertThat(hibp.isBreached(PASSWORD)).isFalse();
+    }
+
+    @Test
+    @DisplayName("US-41: 닿지 못할 때마다 알린다 → 지표 jp_auth_breach_check_failed_total (급증 알림, D-076)")
+    void failOpenIsCounted() {
+        AtomicInteger unreachable = new AtomicInteger();
+        HibpBreachedPasswords hibp = new HibpBreachedPasswords(prefix -> {
+            throw new IllegalStateException("timeout");
+        }, unreachable::incrementAndGet);
+        hibp.isBreached(PASSWORD);
+        hibp.isBreached(PASSWORD);
+        assertThat(unreachable).hasValue(2);
+        new HibpBreachedPasswords(prefix -> "", unreachable::incrementAndGet).isBreached(PASSWORD);
+        assertThat(unreachable).hasValue(2);
     }
 }

@@ -25,6 +25,9 @@ dependencies {
 
     // 로그인 (US-34, D-061): Spring Security + 서버 세션(Spring Session + Redis). Redis는 세션·요청 제한 카운터에만
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    // 보안 지표 (US-41, 08 13-8) — 관리 포트의 /actuator/prometheus로 내보낸다
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-session-data-redis'
     // 구글 로그인 (US-36, D-061): OpenID Connect — state·nonce·PKCE·ID 토큰 검증은 Spring Security OAuth2 Login이 한다

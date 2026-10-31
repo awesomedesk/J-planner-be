@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
@@ -14,6 +18,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * US-41 서비스가 보안 기본 설정(헤더·CORS·CSRF·요청 제한·오류 응답·비밀값·공급망)을 갖춘다 (SEC-04~13·15).
@@ -31,6 +36,12 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
     private static final String KIM = "kim@test.local";
     private static final String PW = "member-password-123";
     private static final String PROXY = "10.0.0.5";
+
+    @Autowired
+    private MeterRegistry meters;
+
+    @Autowired
+    private PrometheusMeterRegistry prometheus;
 
     private long kim;
 
@@ -106,7 +117,85 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
         assertThat(redis.keys("jp:rl:login-ip:*")).containsExactly("jp:rl:login-ip:" + hmac("198.51.100.31"));
     }
 
+    // ------------------------------------------------------------------ 보안 지표 (08 13-8)
+
+    @Test
+    @DisplayName("지표: 로그인 jp_auth_login_total{result=SUCCESS|FAILED|SUSPENDED|LOCKED, method=PASSWORD} — 태그에 IP·이메일·회원 번호 없음")
+    void loginMetrics() throws Exception {
+        double success = count("jp.auth.login", "result", "SUCCESS", "method", "PASSWORD");
+        double failed = count("jp.auth.login", "result", "FAILED", "method", "PASSWORD");
+        double suspended = count("jp.auth.login", "result", "SUSPENDED", "method", "PASSWORD");
+        double locked = count("jp.auth.login", "result", "LOCKED", "method", "PASSWORD");
+
+        Browser b = browser("198.51.100.40").withCsrf();
+        b.login(KIM, PW).andExpect(status().isOk());
+        for (int i = 0; i < 5; i++) {
+            b.login(KIM, "wrong-password-123").andExpect(status().isUnauthorized());
+        }
+        b.login(KIM, PW).andExpect(status().isTooManyRequests());
+        long lee = createUser("lee@test.local");
+        setPassword(lee, PW);
+        jdbc.update("UPDATE users SET suspended_at = NOW() WHERE user_id = ?", lee);
+        b.login("lee@test.local", PW).andExpect(status().isForbidden());
+
+        assertThat(count("jp.auth.login", "result", "SUCCESS", "method", "PASSWORD") - success).isEqualTo(1);
+        assertThat(count("jp.auth.login", "result", "FAILED", "method", "PASSWORD") - failed).isEqualTo(5);
+        assertThat(count("jp.auth.login", "result", "LOCKED", "method", "PASSWORD") - locked).isEqualTo(1);
+        assertThat(count("jp.auth.login", "result", "SUSPENDED", "method", "PASSWORD") - suspended).isEqualTo(1);
+        assertThat(meters.find("jp.auth.login").meters()).allSatisfy(m ->
+            assertThat(m.getId().getTags()).extracting(Tag::getKey).containsOnly("result", "method"));
+    }
+
+    @Test
+    @DisplayName("지표: 요청 제한에 걸리면 jp_ratelimit_rejected_total{rule} — 감사 기록의 rule 값과 같다 (메일만 안 보내는 signup-resend도)")
+    void rateLimitMetrics() throws Exception {
+        double loginIp = count("jp.ratelimit.rejected", "rule", "login-ip");
+        Browser b = browser("198.51.100.41").withCsrf();
+        for (int i = 0; i < 21; i++) {
+            b.login("nobody" + i + "@test.local", "any-password-1234");
+        }
+        assertThat(count("jp.ratelimit.rejected", "rule", "login-ip") - loginIp).isEqualTo(1);
+
+        double resend = count("jp.ratelimit.rejected", "rule", "signup-resend");
+        Browser s = browser("198.51.100.42").withCsrf();
+        s.postJson("/api/v1/auth/signup", "{\"email\":\"new@test.local\",\"password\":\"pending-password-123\",\"name\":\"새\",\"ageOver14\":true}")
+            .andExpect(status().isAccepted());
+        for (int i = 0; i < 11; i++) {
+            clock.advance(java.time.Duration.ofMinutes(2));
+            browser("198.51.100." + (100 + i)).withCsrf()
+                .postJson("/api/v1/auth/signup/resend", "{\"email\":\"new@test.local\"}").andExpect(status().isAccepted());
+        }
+        assertThat(count("jp.ratelimit.rejected", "rule", "signup-resend") - resend).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("지표: 메일 jp_auth_mail_total{type=SIGNUP|RESET|EMAIL_CHANGE|NOTICE, result=SENT|FAILED} — 실패해도 응답은 그대로 202")
+    void mailMetrics() throws Exception {
+        double sent = count("jp.auth.mail", "type", "RESET", "result", "SENT");
+        double failed = count("jp.auth.mail", "type", "RESET", "result", "FAILED");
+        Browser b = browser("198.51.100.43").withCsrf();
+        b.postJson("/api/v1/auth/password/forgot", "{\"email\":\"" + KIM + "\"}").andExpect(status().isAccepted());
+        mailer.failNext();
+        b.postJson("/api/v1/auth/password/forgot", "{\"email\":\"" + KIM + "\"}").andExpect(status().isAccepted());
+        assertThat(count("jp.auth.mail", "type", "RESET", "result", "SENT") - sent).isEqualTo(1);
+        assertThat(count("jp.auth.mail", "type", "RESET", "result", "FAILED") - failed).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("지표는 Prometheus 형식으로 내보낸다 (이름 jp_auth_login_total …). Actuator는 앱 주소(/api와 같은 포트)에서 열리지 않는다 — 관리 포트 따로")
+    void prometheusOnManagementPortOnly() throws Exception {
+        browser("198.51.100.44").withCsrf().login(KIM, PW).andExpect(status().isOk());
+        assertThat(prometheus.scrape()).contains("jp_auth_login_total{method=\"PASSWORD\",result=\"SUCCESS\"}");
+        browser("198.51.100.45").get("/actuator/prometheus").andExpect(status().isNotFound());
+        browser("198.51.100.45").get("/actuator/health").andExpect(status().isNotFound());
+    }
+
     // ------------------------------------------------------------------ 도우미
+
+    private double count(String name, String... tags) {
+        Counter counter = meters.find(name).tags(tags).counter();
+        return counter == null ? 0 : counter.count();
+    }
 
     private String loginIp() {
         return jdbc.queryForObject("SELECT ip FROM audit_logs WHERE user_id = ? AND event = 'LOGIN' ORDER BY audit_id DESC LIMIT 1", String.class, kim);
