@@ -112,6 +112,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return super.handleExceptionInternal(ex, problem, headers, status, request);
     }
 
+    /** 본문을 읽다가 우리 예외(길이 모르는 본문 1MiB 초과 → 413, US-41)가 난 경우는 그 코드로. 나머지는 400 VALIDATION_FAILED */
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+        HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        for (Throwable t = ex.getCause(); t != null; t = t.getCause()) {
+            if (t instanceof ApiException api) {
+                ErrorCode code = api.getErrorCode();
+                log.debug("API error while reading body: {}", code);
+                return ResponseEntity.status(code.getStatus())
+                    .body(problem(code.getStatus(), code, api.getMessage(), api.getErrors(), requestUri(request)));
+            }
+        }
+        return super.handleHttpMessageNotReadable(ex, headers, status, request);
+    }
+
     /**
      * 부모 클래스가 처리하는 Spring MVC 오류 전부가 거쳐 가는 곳.
      * 만들어진 ProblemDetail에 code·errors·instance를 채우고 detail을 한국어로 바꾼다.
