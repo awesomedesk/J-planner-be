@@ -96,6 +96,19 @@ class US37MyAccountAcceptanceTest extends BrowserAcceptanceTest {
     }
 
     @Test
+    @DisplayName("AC1: 재인증 비밀번호가 틀리면 400 REAUTH_FAILED (errors password) — 로그인 만료(401)와 구별, 로그인은 그대로. 로그인 실패와 같은 계정별 대기(6번째 429)")
+    void wrongReauthPasswordIsNotUnauthenticated() throws Exception {
+        Browser b = login(KIM, PW, "203.0.113.3");
+        for (int i = 0; i < 5; i++) {
+            b.postJson(REAUTH, "{\"password\":\"wrong-password-123\"}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("REAUTH_FAILED")).andExpect(jsonPath("$.errors[0].field").value("password"));
+        }
+        b.get(ME).andExpect(status().isOk());
+        putJson(b, EMAIL, "{\"email\":\"new@test.local\"}").andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("REAUTH_REQUIRED"));
+        b.postJson(REAUTH, "{\"password\":\"" + PW + "\"}").andExpect(status().isTooManyRequests());
+    }
+
+    @Test
     @DisplayName("AC1: 이메일 변경 요청 → 202, 새 주소로 인증 링크(24시간) + 기존 주소에 알림, 인증 전까지 기존 이메일 그대로(로그인도 기존 이메일)")
     void emailChangeRequest() throws Exception {
         Browser b = login(KIM, PW, "203.0.113.3");
@@ -238,7 +251,7 @@ class US37MyAccountAcceptanceTest extends BrowserAcceptanceTest {
         Browser g = googleSignup(hong, "203.0.113.26");
         g.withCsrf();
 
-        g.postJson(REAUTH, "{\"password\":\"anything-at-all-123\"}").andExpect(status().isUnauthorized());
+        g.postJson(REAUTH, "{\"password\":\"anything-at-all-123\"}").andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("REAUTH_FAILED"));
         String authorize = start(g, REAUTH_GOOGLE);
         Map<String, String> q = FakeGoogle.query(authorize);
         assertThat(q.get("prompt")).isEqualTo("login");

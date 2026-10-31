@@ -399,7 +399,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
     // ------------------------------------------------------------------ AC3 연결은 내 계정에서만
 
     @Test
-    @DisplayName("AC3: 구글 연결은 로그인한 뒤(401) 재인증 5분 안에만(403 REAUTH_REQUIRED) 시작된다. 재인증 비밀번호가 틀리면 401")
+    @DisplayName("AC3: 구글 연결은 로그인한 뒤(401) 재인증 5분 안에만(403 REAUTH_REQUIRED) 시작된다. 재인증 비밀번호가 틀리면 400 REAUTH_FAILED")
     void connectNeedsLoginAndReauth() throws Exception {
         browser("198.51.100.50").get(CONNECT).andExpect(status().isUnauthorized());
 
@@ -408,7 +408,7 @@ class US36GoogleLoginAcceptanceTest extends BrowserAcceptanceTest {
         Browser b = loggedIn("kim@test.local", "member-password-123", "198.51.100.51");
 
         b.get(CONNECT).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("REAUTH_REQUIRED"));
-        b.postJson(REAUTH, "{\"password\":\"wrong-password-123\"}").andExpect(status().isUnauthorized());
+        b.postJson(REAUTH, "{\"password\":\"wrong-password-123\"}").andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("REAUTH_FAILED"));
         b.get(ME).andExpect(status().isOk());
         b.get(CONNECT).andExpect(status().isForbidden());
 
