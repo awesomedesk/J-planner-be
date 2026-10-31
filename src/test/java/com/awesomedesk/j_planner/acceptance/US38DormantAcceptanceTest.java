@@ -144,6 +144,62 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
         assertThat(memberStatus(kim)).isEqualTo("DORMANT");
     }
 
+    @Test
+    @DisplayName("AC1: 안내 메일 보내기가 실패하면 안내한 것으로 치지 않는다 — 다음 날 다시 보내고, 보낸 날부터 30일 뒤 휴면 (PO #7 1번)")
+    void failedNoticeIsRetried() {
+        lastLogin(kim, now().minusYears(2));
+        mailer.failNext();
+        dormancy.run();
+        assertThat(mailer.sentTo(KIM, "DORMANT_NOTICE")).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT dormant_notice_sent_at FROM users WHERE user_id = ?", LocalDateTime.class, kim)).isNull();
+
+        clock.advance(Duration.ofDays(1));
+        dormancy.run();
+        assertThat(mailer.sentTo(KIM, "DORMANT_NOTICE")).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT dormant_notice_sent_at FROM users WHERE user_id = ?", LocalDateTime.class, kim)).isEqualTo(now());
+
+        clock.advance(Duration.ofDays(29));
+        dormancy.run();
+        assertThat(memberStatus(kim)).isEqualTo("ACTIVE");
+        clock.advance(Duration.ofDays(1));
+        dormancy.run();
+        assertThat(memberStatus(kim)).isEqualTo("DORMANT");
+    }
+
+    @Test
+    @DisplayName("AC1: 휴면 대상으로 고른 뒤 바꾸기 전에 로그인하면 휴면이 되지 않는다 — 바꾸기 직전에 조건을 다시 본다 (PO #7 2번)")
+    void loginBetweenScanAndConvert() throws Exception {
+        jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = ? WHERE user_id = ?", now().minusYears(1).minusDays(1), now().minusDays(30), kim);
+        assertThat(dormancy.dueForDormancy(now())).contains(kim);
+
+        loggedIn(KIM, PW, "203.0.113.20");
+        assertThat(dormancy.toDormant(kim, now())).isFalse();
+        assertThat(memberStatus(kim)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM dormant_profiles", Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("AC1: 반대 순서 — 휴면으로 바꾼 뒤 로그인하면 복원된다 (PO #7 2번)")
+    void convertThenLogin() throws Exception {
+        jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = ? WHERE user_id = ?", now().minusYears(1).minusDays(1), now().minusDays(30), kim);
+        assertThat(dormancy.toDormant(kim, now())).isTrue();
+        browser("203.0.113.21").withCsrf().login(KIM, PW).andExpect(status().isOk()).andExpect(jsonPath("$.restored").value(true));
+        assertThat(memberStatus(kim)).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("AC1: 삭제 대상으로 고른 뒤 삭제 전에 로그인해 복원되면 지우지 않는다 — 지우기 직전에 조건을 다시 본다 (PO #7 3번)")
+    void restoredBetweenScanAndDelete() throws Exception {
+        makeDormant(kim);
+        jdbc.update("UPDATE users SET dormant_at = ? WHERE user_id = ?", now().minusYears(4), kim);
+        assertThat(dormancy.dueForDeletion(now())).contains(kim);
+
+        browser("203.0.113.22").withCsrf().login(KIM, PW).andExpect(status().isOk()).andExpect(jsonPath("$.restored").value(true));
+        assertThat(dormancy.deleteDormant(kim, now())).isFalse();
+        assertThat(jdbc.queryForObject("SELECT email FROM users WHERE user_id = ?", String.class, kim)).isEqualTo(KIM);
+        assertThat(categories(kim)).isPositive();
+    }
+
     // ------------------------------------------------------------------ 복원
 
     @Test
@@ -181,7 +237,7 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
     }
 
     @Test
-    @DisplayName("AC1: 휴면 회원이 연결된 구글로 로그인해도 복원된다")
+    @DisplayName("AC1: 휴면 회원이 연결된 구글로 로그인해도 복원된다 — 302 주소에 restored=1")
     void googleLoginRestores() throws Exception {
         GoogleUser hong = new GoogleUser("google-sub-hong", "hong@gmail.com", true, "홍길동");
         googleSignup(hong, "203.0.113.6");
@@ -189,7 +245,7 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
         makeDormant(id);
 
         Browser b = browser("203.0.113.7");
-        assertThat(callback(b, start(b), hong)).isEqualTo(FE + "/");
+        assertThat(callback(b, start(b), hong)).isEqualTo(FE + "/?restored=1"); // FE가 '휴면에서 돌아왔어요' 안내 (PO #7 4번)
         b.get(ME).andExpect(status().isOk()).andExpect(jsonPath("$.email").value("hong@gmail.com"));
         assertThat(memberStatus(id)).isEqualTo("ACTIVE");
         assertThat(audits(id)).containsSubsequence("DORMANT", "DORMANT_RESTORED", "LOGIN");
