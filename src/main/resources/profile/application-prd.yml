@@ -7,6 +7,7 @@
 #   JP_WEB_BASE_URL  FE 화면 주소 (메일 링크, 예 https://planner.example.com) — 기본값 없음 (D-074)
 #   JP_MAIL_FROM     보내는 주소 (기본 no-reply@awesomedesk.co.kr)
 #   JP_TRUSTED_PROXIES  앞단 프록시(Caddy/nginx) 주소 CIDR, 쉼표 목록 (US-41, 예 10.0.0.2/32) — 기본값 없음. 프록시가 없으면 빈 값으로 명시
+#   JP_RATELIMIT_KEY  요청 제한 키 HMAC 비밀 키 (US-41, base64 32바이트 이상, 예: openssl rand -base64 32) — 기본값 없음
 #   JP_GOOGLE_CLIENT_ID, JP_GOOGLE_CLIENT_SECRET  구글 로그인 OAuth 클라이언트 (US-36) — 기본값 없음
 spring:
   config:
@@ -37,6 +38,8 @@ springdoc:
 app:
   network:
     trusted-proxies: ${JP_TRUSTED_PROXIES}
+  ratelimit:
+    key: ${JP_RATELIMIT_KEY}
   web:
     base-url: ${JP_WEB_BASE_URL}
   # 구글 로그인 (US-36). 기본값을 두지 않아 빠뜨리면 켜지지 않는다

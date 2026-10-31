@@ -42,6 +42,9 @@ app:
   # 믿는 프록시 (US-41): 이 주소(CIDR, 쉼표 목록)에서 온 연결만 X-Forwarded-For로 진짜 IP를 정한다 (ClientIp). 로컬은 프록시 없음
   network:
     trusted-proxies: ${JP_TRUSTED_PROXIES:}
+  # 요청 제한 Redis 키의 대상 해시 HMAC 비밀 키 (US-41, base64 32바이트 이상). 로컬은 비워 두면 켤 때마다 무작위 — tst·prd는 JP_RATELIMIT_KEY 필수
+  ratelimit:
+    key: ${JP_RATELIMIT_KEY:}
   cors:
     allowed-origins: ${JP_CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
   # FE 화면 주소 — 메일 링크(가입 인증 /signup/verify?token=…)에 쓴다 (D-074: 운영 도메인은 설정값으로). tst·prd는 JP_WEB_BASE_URL
