@@ -4,7 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.Set;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,6 +19,7 @@ import org.junit.jupiter.api.Test;
  * US-41 서비스가 보안 기본 설정(헤더·CORS·CSRF·요청 제한·오류 응답·비밀값·공급망)을 갖춘다 (SEC-04~13·15).
  * 설계: 08-api-design.md 13-7·13-8, 07 11-6·11-8.
  * <p>
+ * AC2: 요청 제한 — 로그인 IP는 첫 시도부터 1분 창, Redis 키의 대상(IP·이메일·회원)은 비밀 키({@code app.ratelimit.key}) HMAC-SHA256.
  * AC3: 프록시(Caddy/nginx) 뒤에서도 진짜 접속 IP로 요청 제한·감사 기록·기기 목록을 남긴다 — 믿는 프록시 주소(설정 {@code app.network.trusted-proxies},
  *      테스트는 10.0.0.0/8)에서 온 X-Forwarded-For만, 오른쪽부터 믿는 프록시를 건너뛴 첫 주소.
  * <p>
@@ -88,10 +95,28 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
         assertThat(redis.getExpire(key)).isBetween(1L, 60L);
     }
 
+    @Test
+    @DisplayName("AC2: 요청 제한 Redis 키의 대상은 비밀 키 HMAC-SHA256 — IP·이메일의 SHA-256이 보이지 않는다")
+    void rateLimitKeysAreKeyedHashes() throws Exception {
+        browser("198.51.100.31").withCsrf().login("nobody@test.local", "any-password-1234").andExpect(status().isUnauthorized());
+        String sha = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest("198.51.100.31".getBytes(StandardCharsets.UTF_8)), 0, 16);
+        String failSha = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest("nobody@test.local".getBytes(StandardCharsets.UTF_8)), 0, 16);
+        Set<String> keys = redis.keys("jp:rl:*");
+        assertThat(keys).isNotEmpty().noneMatch(k -> k.endsWith(sha) || k.endsWith(failSha));
+        assertThat(redis.keys("jp:rl:login-ip:*")).containsExactly("jp:rl:login-ip:" + hmac("198.51.100.31"));
+    }
+
     // ------------------------------------------------------------------ 도우미
 
     private String loginIp() {
         return jdbc.queryForObject("SELECT ip FROM audit_logs WHERE user_id = ? AND event = 'LOGIN' ORDER BY audit_id DESC LIMIT 1", String.class, kim);
+    }
+
+    /** 테스트 설정의 키(app.ratelimit.key)로 계산한 HMAC-SHA256 앞 16바이트 */
+    private static String hmac(String value) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(Base64.getDecoder().decode("dGVzdC1vbmx5LXJhdGUtbGltaXQta2V5LTMyYnl0ZXMh"), "HmacSHA256"));
+        return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)), 0, 16);
     }
 
     private void clearAudit() {

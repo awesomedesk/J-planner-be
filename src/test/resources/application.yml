@@ -42,6 +42,9 @@ app:
   # 믿는 프록시 (US-41). 테스트는 10.0.0.0/8을 프록시로 본다 — Browser.via(...)로 X-Forwarded-For를 붙인다
   network:
     trusted-proxies: 10.0.0.0/8
+  # 요청 제한 키 HMAC 비밀 키 (US-41). 테스트용 가짜 값 (운영은 JP_RATELIMIT_KEY)
+  ratelimit:
+    key: dGVzdC1vbmx5LXJhdGUtbGltaXQta2V5LTMyYnl0ZXMh
   cors:
     allowed-origins: http://localhost:3000
   web:
