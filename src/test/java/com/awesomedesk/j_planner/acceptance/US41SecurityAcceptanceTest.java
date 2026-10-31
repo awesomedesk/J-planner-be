@@ -1,6 +1,8 @@
 package com.awesomedesk.j_planner.acceptance;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,7 +29,8 @@ import org.springframework.core.io.FileSystemResource;
  * US-41 서비스가 보안 기본 설정(헤더·CORS·CSRF·요청 제한·오류 응답·비밀값·공급망)을 갖춘다 (SEC-04~13·15).
  * 설계: 08-api-design.md 13-7·13-8, 07 11-6·11-8.
  * <p>
- * AC2: 요청 제한 — 로그인 IP는 첫 시도부터 1분 창, Redis 키의 대상(IP·이메일·회원)은 비밀 키({@code app.ratelimit.key}) HMAC-SHA256.
+ * AC1: 보안 헤더 (HTTPS·HSTS는 앞단 프록시가 붙인다 — 배포 때 확인).
+ * AC2: 요청 크기 1MB, 일반 API 회원별 분당 300번(api-user). 요청 제한 — 로그인 IP는 첫 시도부터 1분 창, Redis 키의 대상(IP·이메일·회원)은 비밀 키({@code app.ratelimit.key}) HMAC-SHA256.
  * AC3: 프록시(Caddy/nginx) 뒤에서도 진짜 접속 IP로 요청 제한·감사 기록·기기 목록을 남긴다 — 믿는 프록시 주소(설정 {@code app.network.trusted-proxies},
  *      테스트는 10.0.0.0/8)에서 온 X-Forwarded-For만, 오른쪽부터 믿는 프록시를 건너뛴 첫 주소.
  * <p>
@@ -52,6 +55,52 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
     void setUp() {
         kim = createUser(KIM);
         setPassword(kim, PW);
+    }
+
+    // ------------------------------------------------------------------ AC1 보안 헤더
+
+    @Test
+    @DisplayName("AC1: API 응답 보안 헤더 — nosniff, frame 막기(X-Frame-Options DENY + CSP frame-ancestors 'none'), CSP default-src 'none', Referrer-Policy no-referrer, no-store")
+    void securityHeaders() throws Exception {
+        Browser b = browser("198.51.100.50").withCsrf();
+        for (String url : new String[] {"/api/v1/health", "/api/v1/me"}) {
+            b.get(url)
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("Cache-Control", containsString("no-store")));
+        }
+    }
+
+    // ------------------------------------------------------------------ AC2 요청 크기·요청 제한
+
+    @Test
+    @DisplayName("AC2: 요청 본문은 1MB까지 — 넘으면 본문을 읽지 않고 413 CONTENT_TOO_LARGE")
+    void requestSizeLimit() throws Exception {
+        Browser b = loggedIn(KIM, PW, "198.51.100.51");
+        String big = "가".repeat(400_000); // UTF-8 3바이트 × 40만 = 1.2MB
+        b.postJson("/api/v1/memos", "{\"title\":\"큰 메모\",\"content\":\"" + big + "\"}")
+            .andExpect(status().isPayloadTooLarge())
+            .andExpect(jsonPath("$.code").value("CONTENT_TOO_LARGE"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM memos WHERE user_id = ?", Integer.class, kim)).isZero();
+        b.postJson("/api/v1/memos", "{\"title\":\"보통 메모\",\"content\":\"" + "가".repeat(300_000) + "\"}").andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("AC2: 로그인한 회원의 일반 API는 분당 300번까지 — 301번째 429(RATE_LIMITED api-user 감사 기록), 다른 회원은 영향 없음")
+    void apiUserLimit() throws Exception {
+        Browser b = loggedIn(KIM, PW, "198.51.100.52");
+        for (int i = 0; i < 300; i++) {
+            b.get("/api/v1/categories").andExpect(status().isOk());
+        }
+        b.get("/api/v1/categories").andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.code").value("TOO_MANY_REQUESTS"));
+        assertThat(jdbc.queryForList("SELECT CAST(detail AS CHAR) FROM audit_logs WHERE user_id = ? AND event = 'RATE_LIMITED'", String.class, kim))
+            .containsExactly("{\"rule\": \"api-user\"}");
+
+        long lee = createUser("lee@test.local");
+        setPassword(lee, PW);
+        loggedIn("lee@test.local", PW, "198.51.100.52").get("/api/v1/categories").andExpect(status().isOk());
     }
 
     // ------------------------------------------------------------------ AC3 진짜 IP
