@@ -15,11 +15,19 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * US-38 1년 미로그인 계정은 안내 후 휴면이 되고, 다시 로그인하면 복원된다 (AUTH-09, D-061·D-069).
@@ -52,6 +60,11 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
 
     @Autowired
     private FakeGoogle google;
+
+    @Autowired
+    private TransactionTemplate transaction;
+
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private long kim;
 
@@ -198,6 +211,102 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
         assertThat(dormancy.deleteDormant(kim, now())).isFalse();
         assertThat(jdbc.queryForObject("SELECT email FROM users WHERE user_id = ?", String.class, kim)).isEqualTo(KIM);
         assertThat(categories(kim)).isPositive();
+    }
+
+    // ------------------------------------------------------------------ 겹칠 때 (PO #7 2차)
+
+    @Test
+    @DisplayName("겹침: 안내 메일을 보내는 도중에 로그인하면 안내 기록을 남기지 않는다 — 1년을 새로 세고 다음 안내도 제때 (PO #7 2차 1번)")
+    void loginWhileSendingNotice() throws Exception {
+        lastLogin(kim, now().minusYears(1).plusDays(30));
+        mailer.duringNext(() -> {
+            try {
+                loggedIn(KIM, PW, "203.0.113.30");
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        dormancy.run();
+        assertThat(mailer.sentTo(KIM, "DORMANT_NOTICE")).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT dormant_notice_sent_at FROM users WHERE user_id = ?", LocalDateTime.class, kim)).isNull();
+        assertThat(jdbc.queryForObject("SELECT last_login_at FROM users WHERE user_id = ?", LocalDateTime.class, kim)).isEqualTo(now());
+    }
+
+    @Test
+    @DisplayName("겹침(실제 잠금 대기): 휴면 전환이 회원 행을 잡고 있는 동안 로그인은 기다렸다가, 전환이 끝나면 복원하고 로그인한다 — 새 세션은 끊기지 않음 (PO #7 2차 3번)")
+    void loginWaitsForConversion() throws Exception {
+        due(kim);
+        Browser b = browser("203.0.113.31").withCsrf();
+        Future<Integer> login = transaction.execute(status -> {
+            lockUser(kim);
+            Future<Integer> pending = async(() -> b.login(KIM, PW).andReturn().getResponse().getStatus());
+            assertBlocked(pending);
+            assertThat(dormancy.toDormant(kim, now())).isTrue();
+            return pending;
+        });
+        assertThat(login.get(10, TimeUnit.SECONDS)).isEqualTo(200);
+        assertThat(memberStatus(kim)).isEqualTo("ACTIVE");
+        b.get(ME).andExpect(status().isOk());
+        assertThat(audits(kim)).containsSubsequence("DORMANT", "DORMANT_RESTORED", "LOGIN");
+    }
+
+    @Test
+    @DisplayName("겹침(실제 잠금 대기): 로그인이 회원 행을 잡고 있는 동안 휴면 전환은 기다렸다가, 로그인이 남긴 시각을 보고 휴면하지 않는다 (PO #7 2차 3번)")
+    void conversionWaitsForLogin() throws Exception {
+        due(kim);
+        Future<Boolean> conversion = transaction.execute(status -> {
+            lockUser(kim);
+            Future<Boolean> pending = async(() -> dormancy.toDormant(kim, now()));
+            assertBlocked(pending);
+            jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = NULL WHERE user_id = ?", now(), kim); // 로그인 기록
+            return pending;
+        });
+        assertThat(conversion.get(10, TimeUnit.SECONDS)).isFalse();
+        assertThat(memberStatus(kim)).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("겹침(실제 잠금 대기): 4년 삭제가 회원 행을 잡고 있는 동안 비밀번호가 맞은 로그인은 기다렸다가, 회원이 지워졌으면 세션 없이 401 (PO #7 2차 2번)")
+    void loginWaitsForDeletion() throws Exception {
+        makeDormant(kim);
+        jdbc.update("UPDATE users SET dormant_at = ? WHERE user_id = ?", now().minusYears(4), kim);
+        Browser b = browser("203.0.113.32").withCsrf();
+        Future<Integer> login = transaction.execute(status -> {
+            lockUser(kim);
+            Future<Integer> pending = async(() -> b.login(KIM, PW).andReturn().getResponse().getStatus());
+            assertBlocked(pending);
+            assertThat(dormancy.deleteDormant(kim, now())).isTrue();
+            return pending;
+        });
+        assertThat(login.get(10, TimeUnit.SECONDS)).isEqualTo(401);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE user_id = ?", Integer.class, kim)).isZero();
+        assertThat(redis.keys("jp:session:index:*:" + kim)).isEmpty();
+        b.get(ME).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("겹침(실제 잠금 대기): 로그인(복원)이 회원 행을 잡고 있는 동안 4년 삭제는 기다렸다가, 복원됐으면 지우지 않는다 (PO #7 2차 2번)")
+    void deletionWaitsForLogin() throws Exception {
+        makeDormant(kim);
+        jdbc.update("UPDATE users SET dormant_at = ? WHERE user_id = ?", now().minusYears(4), kim);
+        Future<Boolean> deletion = transaction.execute(status -> {
+            lockUser(kim);
+            Future<Boolean> pending = async(() -> dormancy.deleteDormant(kim, now()));
+            assertBlocked(pending);
+            assertThat(dormancy.recordLogin(kim, new MockHttpServletRequest()).restored()).isTrue();
+            return pending;
+        });
+        assertThat(deletion.get(10, TimeUnit.SECONDS)).isFalse();
+        assertThat(jdbc.queryForObject("SELECT email FROM users WHERE user_id = ?", String.class, kim)).isEqualTo(KIM);
+    }
+
+    @Test
+    @DisplayName("로그인 기록 때 회원이 이미 없으면(삭제됨) 기록·복원하지 않고 '없음'을 알린다 — 부르는 쪽은 세션을 만들지 않는다")
+    void recordLoginForDeletedMember() {
+        makeDormant(kim);
+        jdbc.update("UPDATE users SET dormant_at = ? WHERE user_id = ?", now().minusYears(4), kim);
+        dormancy.run();
+        assertThat(dormancy.recordLogin(kim, new MockHttpServletRequest()).exists()).isFalse();
     }
 
     // ------------------------------------------------------------------ 복원
@@ -356,6 +465,32 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
             now().minusYears(1).minusDays(1), now().minusDays(30), userId);
         dormancy.run();
         assertThat(memberStatus(userId)).isEqualTo("DORMANT");
+    }
+
+    /** 휴면 대상 조건(1년·안내 30일)을 갖춘 회원으로 */
+    private void due(long userId) {
+        jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = ? WHERE user_id = ?", now().minusYears(1).minusDays(1), now().minusDays(30), userId);
+    }
+
+    /** 이 트랜잭션에서 회원 행을 잠근다 (휴면 작업·로그인이 잡는 것과 같은 잠금) */
+    private void lockUser(long userId) {
+        jdbc.queryForList("SELECT user_id FROM users WHERE user_id = ? FOR UPDATE", Long.class, userId);
+    }
+
+    private <T> Future<T> async(Callable<T> work) {
+        return executor.submit(work);
+    }
+
+    /** 다른 쪽이 잠금을 기다리고 있는지 (0.5초 안에 끝나지 않음) */
+    private static void assertBlocked(Future<?> pending) {
+        try {
+            pending.get(500, TimeUnit.MILLISECONDS);
+            throw new AssertionError("잠금을 기다리지 않고 끝났다");
+        } catch (TimeoutException expected) {
+            // 기다리는 중
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     private String memberStatus(long userId) {

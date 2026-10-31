@@ -14,6 +14,12 @@ public class RecordingMailer implements AuthMailer {
 
     private final List<Sent> sent = new CopyOnWriteArrayList<>();
     private volatile boolean failNext;
+    private volatile Runnable duringNext;
+
+    /** 다음 메일을 보내는 도중에 할 일 (예: 그 사이 로그인) — 경합 재현용 (US-38) */
+    public void duringNext(Runnable action) {
+        duringNext = action;
+    }
 
     /** 다음 메일 하나는 보내기에 실패한다 (예외) — 메일 실패 처리·지표 확인용 (US-41) */
     public void failNext() {
@@ -21,6 +27,11 @@ public class RecordingMailer implements AuthMailer {
     }
 
     private void record(Sent mail) {
+        Runnable action = duringNext;
+        if (action != null) {
+            duringNext = null;
+            action.run();
+        }
         if (failNext) {
             failNext = false;
             throw new IllegalStateException("가짜 메일 실패");
@@ -95,5 +106,6 @@ public class RecordingMailer implements AuthMailer {
     public void clear() {
         sent.clear();
         failNext = false;
+        duringNext = null;
     }
 }
