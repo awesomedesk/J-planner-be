@@ -2,10 +2,12 @@ package com.awesomedesk.j_planner.acceptance;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.awesomedesk.j_planner.common.crypto.NotesEncryptor;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
@@ -14,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import javax.crypto.Mac;
@@ -24,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.MediaType;
 
 /**
  * US-41 서비스가 보안 기본 설정(헤더·CORS·CSRF·요청 제한·오류 응답·비밀값·공급망)을 갖춘다 (SEC-04~13·15).
@@ -31,6 +35,7 @@ import org.springframework.core.io.FileSystemResource;
  * <p>
  * AC1: 보안 헤더 (HTTPS·HSTS는 앞단 프록시가 붙인다 — 배포 때 확인).
  * AC2: 요청 크기 1MB, 일반 API 회원별 분당 300번(api-user). 요청 제한 — 로그인 IP는 첫 시도부터 1분 창, Redis 키의 대상(IP·이메일·회원)은 비밀 키({@code app.ratelimit.key}) HMAC-SHA256.
+ * AC4: 일기 내용·메모 제목·내용은 앱에서 AES-256-GCM으로 암호화해 저장 (키 {@code app.crypto.data-key}, 기존 원문은 켤 때 다시 저장).
  * AC3: 프록시(Caddy/nginx) 뒤에서도 진짜 접속 IP로 요청 제한·감사 기록·기기 목록을 남긴다 — 믿는 프록시 주소(설정 {@code app.network.trusted-proxies},
  *      테스트는 10.0.0.0/8)에서 온 X-Forwarded-For만, 오른쪽부터 믿는 프록시를 건너뛴 첫 주소.
  * <p>
@@ -45,6 +50,9 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
 
     @Autowired
     private MeterRegistry meters;
+
+    @Autowired
+    private NotesEncryptor encryptor;
 
     @Autowired
     private PrometheusMeterRegistry prometheus;
@@ -167,6 +175,47 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
         Set<String> keys = redis.keys("jp:rl:*");
         assertThat(keys).isNotEmpty().noneMatch(k -> k.endsWith(sha) || k.endsWith(failSha));
         assertThat(redis.keys("jp:rl:login-ip:*")).containsExactly("jp:rl:login-ip:" + hmac("198.51.100.31"));
+    }
+
+    // ------------------------------------------------------------------ AC4 일기·메모 암호화
+
+    @Test
+    @DisplayName("AC4: 일기 내용·메모 제목·내용은 DB에 AES-256-GCM 암호문으로 저장된다 (원문이 안 보이고, 같은 내용도 매번 다름) — API로는 원문")
+    void notesEncryptedAtRest() throws Exception {
+        Browser b = loggedIn(KIM, PW, "198.51.100.60");
+        b.perform(put("/api/v1/diaries/" + TODAY).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"비밀 일기 내용\"}"))
+            .andExpect(status().is2xxSuccessful());
+        b.postJson("/api/v1/memos", "{\"title\":\"비밀 제목\",\"content\":\"같은 메모\"}").andExpect(status().isCreated());
+        b.postJson("/api/v1/memos", "{\"title\":\"비밀 제목\",\"content\":\"같은 메모\"}").andExpect(status().isCreated());
+
+        byte[] diary = jdbc.queryForObject("SELECT content FROM diaries WHERE user_id = ?", byte[].class, kim);
+        assertThat(diary[0]).isEqualTo((byte) 1);
+        assertThat(new String(diary, StandardCharsets.UTF_8)).doesNotContain("비밀");
+        List<byte[]> titles = jdbc.queryForList("SELECT title FROM memos WHERE user_id = ? ORDER BY memo_id", byte[].class, kim);
+        List<byte[]> contents = jdbc.queryForList("SELECT content FROM memos WHERE user_id = ? ORDER BY memo_id", byte[].class, kim);
+        assertThat(titles.get(0)).isNotEqualTo(titles.get(1));
+        assertThat(contents.get(0)).isNotEqualTo(contents.get(1));
+        assertThat(new String(contents.get(0), StandardCharsets.UTF_8)).doesNotContain("메모");
+
+        b.get("/api/v1/diaries/" + TODAY).andExpect(status().isOk()).andExpect(jsonPath("$.content").value("비밀 일기 내용"));
+        b.get("/api/v1/memos").andExpect(status().isOk()).andExpect(jsonPath("$[0].title").value("비밀 제목"));
+    }
+
+    @Test
+    @DisplayName("AC4: 암호화 전에 저장된 원문(기존 admin 데이터·로컬 예시 데이터)은 서버를 켤 때 한 번 읽어 암호화해 다시 저장한다 — 이미 암호문인 행은 건드리지 않음")
+    void existingPlaintextIsEncrypted() throws Exception {
+        jdbc.update("INSERT INTO diaries (user_id, diary_date, content) VALUES (?, '2026-09-01', ?)", kim, "예전 일기".getBytes(StandardCharsets.UTF_8));
+        jdbc.update("INSERT INTO memos (user_id, title, content) VALUES (?, ?, NULL)", kim, "예전 메모".getBytes(StandardCharsets.UTF_8));
+        Browser b = loggedIn(KIM, PW, "198.51.100.61");
+        b.get("/api/v1/diaries/2026-09-01").andExpect(status().isOk()).andExpect(jsonPath("$.content").value("예전 일기"));
+
+        assertThat(encryptor.encryptPlaintext()).isEqualTo(2);
+        assertThat(encryptor.encryptPlaintext()).isZero();
+        assertThat(jdbc.queryForObject("SELECT content FROM diaries WHERE user_id = ?", byte[].class, kim)[0]).isEqualTo((byte) 1);
+        assertThat(jdbc.queryForObject("SELECT title FROM memos WHERE user_id = ?", byte[].class, kim)[0]).isEqualTo((byte) 1);
+        assertThat(jdbc.queryForObject("SELECT content FROM memos WHERE user_id = ?", byte[].class, kim)).isNull();
+        b.get("/api/v1/diaries/2026-09-01").andExpect(jsonPath("$.content").value("예전 일기"));
+        b.get("/api/v1/memos").andExpect(jsonPath("$[0].title").value("예전 메모"));
     }
 
     // ------------------------------------------------------------------ 보안 지표 (08 13-8)

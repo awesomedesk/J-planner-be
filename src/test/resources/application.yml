@@ -45,6 +45,9 @@ app:
   # 요청 제한 키 HMAC 비밀 키 (US-41). 테스트용 가짜 값 (운영은 JP_RATELIMIT_KEY)
   ratelimit:
     key: dGVzdC1vbmx5LXJhdGUtbGltaXQta2V5LTMyYnl0ZXMh
+  # 일기·메모 암호화 키 (US-41). 테스트용 가짜 값 (운영은 JP_DATA_KEY)
+  crypto:
+    data-key: dGVzdC1vbmx5LWRhdGEta2V5LWV4YWN0bHktMzJCISE=
   cors:
     allowed-origins: http://localhost:3000
   web:
