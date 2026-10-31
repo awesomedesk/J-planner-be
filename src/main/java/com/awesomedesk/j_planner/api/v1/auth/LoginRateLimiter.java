@@ -1,11 +1,11 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
 import com.awesomedesk.j_planner.common.error.TooManyRequestsException;
+import com.awesomedesk.j_planner.common.ratelimit.RateLimits;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.HexFormat;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 /**
  * 로그인 요청 횟수 제한 (Redis 카운터, 08 13-7). 키에 이메일·IP 원문 대신 SHA-256 앞부분을 쓴다 (Redis를 봐도 누군지 모르게).
  * <ul>
- *   <li>IP별: 1분 창에 20회까지 ({@code jp:rl:login-ip:<해시>:<분>})</li>
+ *   <li>IP별: 첫 시도부터 1분 동안 20회까지 ({@link RateLimits} 규칙 {@code login-ip}). 시계의 '분'으로 자르면 분이 바뀔 때 다시 0부터라 US-41에서 바꿈</li>
  *   <li>계정(이메일)별: 실패 수 {@code jp:rl:login-fail:<해시>}(마지막 실패 뒤 24시간 유지, 성공하면 지움),
  *       기다릴 시간 {@code jp:rl:login-wait:<해시>}(TTL = {@link LoginBackoff}). 없는 계정도 똑같이 센다</li>
  * </ul>
@@ -28,18 +28,11 @@ class LoginRateLimiter {
     private static final Duration FAILURE_MEMORY = Duration.ofHours(24);
 
     private final StringRedisTemplate redis;
+    private final RateLimits rateLimits;
 
-    /** IP 한도를 넘었으면 429. 시도마다 1 센다 */
+    /** IP 한도를 넘었으면 429 (Retry-After = 창이 끝날 때까지). 시도마다 1 센다 */
     void countIp(String ip) {
-        long minute = Instant.now().getEpochSecond() / 60;
-        String key = "jp:rl:login-ip:" + hash(ip) + ":" + minute;
-        Long count = redis.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            redis.expire(key, Duration.ofSeconds(70));
-        }
-        if (count != null && count > IP_LIMIT_PER_MINUTE) {
-            throw new TooManyRequestsException(ErrorMessages.TOO_MANY, 60 - Instant.now().getEpochSecond() % 60);
-        }
+        rateLimits.hit("login-ip", ip, IP_LIMIT_PER_MINUTE, Duration.ofMinutes(1));
     }
 
     /** 계정이 기다리는 중이면 429 (+ 로그인 실패와 같은 문구) */

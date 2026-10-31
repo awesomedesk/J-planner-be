@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.common.net.ClientIp;
 import com.awesomedesk.j_planner.api.v1.user.MemberEmails;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
@@ -39,6 +40,7 @@ public class PasswordResetService {
     static final String RESET_PATH = "/password/reset?token=";
 
     private final JdbcTemplate jdbc;
+    private final ClientIp clientIp;
     private final MemberEmails memberEmails;
     private final PasswordResetTokens tokens;
     private final PasswordPolicy passwordPolicy;
@@ -51,12 +53,13 @@ public class PasswordResetService {
     private final Clock clock;
     private final String webBaseUrl;
 
-    public PasswordResetService(JdbcTemplate jdbc, MemberEmails memberEmails, PasswordResetTokens tokens, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
+    public PasswordResetService(JdbcTemplate jdbc, MemberEmails memberEmails, ClientIp clientIp, PasswordResetTokens tokens, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
                                 AuthMailer mailer, RateLimits rateLimits, LoginRateLimiter loginRateLimiter,
                                 DeviceSessions deviceSessions, AuditLogger audit, Clock clock,
                                 @Value("${app.web.base-url}") String webBaseUrl) {
         this.jdbc = jdbc;
         this.memberEmails = memberEmails;
+        this.clientIp = clientIp;
         this.tokens = tokens;
         this.passwordPolicy = passwordPolicy;
         this.encoder = encoder;
@@ -74,8 +77,7 @@ public class PasswordResetService {
         if (!EmailAddress.isValid(email)) {
             throw ApiException.validation("email", "이메일 주소를 확인해 주세요.");
         }
-        // TODO(US-41) 프록시 뒤 진짜 IP (getRemoteAddr)
-        if (!rateLimits.tryHit("forgot-ip", http.getRemoteAddr(), 20, Duration.ofHours(1))) {
+        if (!rateLimits.tryHit("forgot-ip", clientIp.of(http), 20, Duration.ofHours(1))) {
             audit.user(null, AuditEvent.RATE_LIMITED, http, Map.of("rule", "forgot-ip"));
             return;
         }
@@ -100,9 +102,8 @@ public class PasswordResetService {
     }
 
     public void reset(PasswordResetRequest request, HttpServletRequest http) {
-        // TODO(US-41) 프록시 뒤 진짜 IP (getRemoteAddr)
         try {
-            rateLimits.hit("reset-ip", http.getRemoteAddr(), 10, Duration.ofMinutes(1));
+            rateLimits.hit("reset-ip", clientIp.of(http), 10, Duration.ofMinutes(1));
         } catch (TooManyRequestsException e) {
             audit.user(null, AuditEvent.RATE_LIMITED, http, Map.of("rule", "reset-ip"));
             throw e;

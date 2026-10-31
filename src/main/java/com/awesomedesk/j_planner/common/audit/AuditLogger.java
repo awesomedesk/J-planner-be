@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.common.audit;
 
+import com.awesomedesk.j_planner.common.net.ClientIp;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -26,6 +27,7 @@ public class AuditLogger {
     private static final int USER_AGENT_MAX = 255;
 
     private final JdbcTemplate jdbc;
+    private final ClientIp clientIp;
     private final JsonMapper jsonMapper;
     private final Clock clock;
 
@@ -35,9 +37,8 @@ public class AuditLogger {
         if (userAgent != null && userAgent.length() > USER_AGENT_MAX) {
             userAgent = userAgent.substring(0, USER_AGENT_MAX);
         }
-        // TODO(US-41) 프록시 뒤 진짜 IP: 지금은 getRemoteAddr()라 Caddy/nginx 뒤에서는 모두 프록시 IP가 된다. tst·prd에 forward-headers + 믿는 프록시 주소만 설정 (09 US-41 AC)
         jdbc.update("INSERT INTO audit_logs (user_id, actor, event, ip, user_agent, detail, created_at) VALUES (?, 'USER', ?, ?, ?, ?, ?)",
-            userId, event.name(), request.getRemoteAddr(), userAgent,
+            userId, event.name(), clientIp.of(request), userAgent,
             detail == null || detail.isEmpty() ? null : jsonMapper.writeValueAsString(detail),
             LocalDateTime.now(clock).withNano(0));
     }

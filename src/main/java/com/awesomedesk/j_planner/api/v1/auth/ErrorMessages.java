@@ -5,7 +5,6 @@ final class ErrorMessages {
 
     /** 로그인 실패는 이 문구 하나 — 없는 계정·틀린 비밀번호·비밀번호 없는 계정·계정별 대기 모두 */
     static final String LOGIN_FAILED = "이메일 또는 비밀번호가 맞지 않아요";
-    static final String TOO_MANY = "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.";
     static final String SUSPENDED = "이용이 제한된 계정이에요.";
 
     private ErrorMessages() {

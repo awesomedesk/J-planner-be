@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.common.net.ClientIp;
 import com.awesomedesk.j_planner.api.v1.user.MemberEmails;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
@@ -46,6 +47,7 @@ public class EmailChangeService {
     static final String VERIFY_PATH = "/email/verify?token=";
 
     private final JdbcTemplate jdbc;
+    private final ClientIp clientIp;
     private final MemberEmails memberEmails;
     private final Reauthentication reauthentication;
     private final LoginMethods loginMethods;
@@ -57,11 +59,12 @@ public class EmailChangeService {
     private final Clock clock;
     private final String webBaseUrl;
 
-    public EmailChangeService(JdbcTemplate jdbc, MemberEmails memberEmails, Reauthentication reauthentication, LoginMethods loginMethods, RateLimits rateLimits,
+    public EmailChangeService(JdbcTemplate jdbc, MemberEmails memberEmails, ClientIp clientIp, Reauthentication reauthentication, LoginMethods loginMethods, RateLimits rateLimits,
                               AuthMailer mailer, DeviceSessions deviceSessions, AuditLogger audit, TransactionTemplate transaction, Clock clock,
                               @Value("${app.web.base-url}") String webBaseUrl) {
         this.jdbc = jdbc;
         this.memberEmails = memberEmails;
+        this.clientIp = clientIp;
         this.reauthentication = reauthentication;
         this.loginMethods = loginMethods;
         this.rateLimits = rateLimits;
@@ -110,9 +113,8 @@ public class EmailChangeService {
     }
 
     public void verify(TokenRequest request, HttpServletRequest http) {
-        // TODO(US-41) 프록시 뒤 진짜 IP (getRemoteAddr)
         try {
-            rateLimits.hit("email-verify-ip", http.getRemoteAddr(), 10, Duration.ofMinutes(1));
+            rateLimits.hit("email-verify-ip", clientIp.of(http), 10, Duration.ofMinutes(1));
         } catch (TooManyRequestsException e) {
             audit.user(null, AuditEvent.RATE_LIMITED, http, Map.of("rule", "email-verify-ip"));
             throw e;

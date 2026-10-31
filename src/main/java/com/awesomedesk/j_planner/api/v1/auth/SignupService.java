@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.common.net.ClientIp;
 import com.awesomedesk.j_planner.api.v1.user.MemberEmails;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
@@ -43,6 +44,7 @@ public class SignupService {
     static final int NAME_MAX = 50;
 
     private final JdbcTemplate jdbc;
+    private final ClientIp clientIp;
     private final MemberEmails memberEmails;
     private final PendingSignups pendingSignups;
     private final LoginMethods loginMethods;
@@ -54,11 +56,12 @@ public class SignupService {
     private final Clock clock;
     private final String webBaseUrl;
 
-    public SignupService(JdbcTemplate jdbc, MemberEmails memberEmails, PendingSignups pendingSignups, LoginMethods loginMethods, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
+    public SignupService(JdbcTemplate jdbc, MemberEmails memberEmails, ClientIp clientIp, PendingSignups pendingSignups, LoginMethods loginMethods, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
                          AuthMailer mailer, RateLimits rateLimits, AuditLogger audit, Clock clock,
                          @Value("${app.web.base-url}") String webBaseUrl) {
         this.jdbc = jdbc;
         this.memberEmails = memberEmails;
+        this.clientIp = clientIp;
         this.pendingSignups = pendingSignups;
         this.loginMethods = loginMethods;
         this.passwordPolicy = passwordPolicy;
@@ -71,8 +74,7 @@ public class SignupService {
     }
 
     public void signup(SignupRequest request, HttpServletRequest http) {
-        // TODO(US-41) 프록시 뒤 진짜 IP (getRemoteAddr)
-        String ip = http.getRemoteAddr();
+        String ip = clientIp.of(http);
         limit(http, "signup-ip", () -> {
             rateLimits.hit("signup-ip-10m", ip, 5, Duration.ofMinutes(10));
             rateLimits.hit("signup-ip-day", ip, 30, Duration.ofDays(1));
@@ -132,8 +134,7 @@ public class SignupService {
     }
 
     public void verify(TokenRequest request, HttpServletRequest http) {
-        // TODO(US-41) 프록시 뒤 진짜 IP (getRemoteAddr)
-        String ip = http.getRemoteAddr();
+        String ip = clientIp.of(http);
         limit(http, "verify-ip", () -> rateLimits.hit("signup-verify-ip", ip, 10, Duration.ofMinutes(1)));
         String token = request.token();
         if (token == null || token.isBlank() || token.length() > 100) {
