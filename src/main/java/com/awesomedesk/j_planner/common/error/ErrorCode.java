@@ -20,6 +20,8 @@ public enum ErrorCode {
     CSRF_INVALID(HttpStatus.FORBIDDEN, "보안 토큰이 없거나 맞지 않습니다. 새로고침한 뒤 다시 시도하세요."),
     /** 민감 작업(구글 연결·해제, 이메일·비밀번호 변경, 탈퇴)인데 재인증한 지 5분이 지남 (08 13-4) */
     REAUTH_REQUIRED(HttpStatus.FORBIDDEN, "보안을 위해 비밀번호를 다시 확인해 주세요."),
+    /** 재인증 비밀번호가 틀림·비밀번호 없는 회원. 로그인 만료(401)와 구별해 FE가 '다시 로그인' 창을 띄우지 않게 (D-085). errors에 password */
+    REAUTH_FAILED(HttpStatus.BAD_REQUEST, "비밀번호가 맞지 않아요"),
     /** 운영자가 정지한 계정. 비밀번호가 맞을 때만 알려준다 (08 13-3) */
     ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN, "이용이 제한된 계정이에요."),
     /** 15자 미만·128자 초과·유출 비밀번호 (08 13-6). errors에 password */
