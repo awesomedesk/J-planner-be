@@ -248,6 +248,22 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
     }
 
     @Test
+    @DisplayName("지표: 로그인·메일 결과 값은 서버를 켤 때 0으로 미리 만든다 — 첫 1건도 increase()에 잡히게 (ADMIN #300)")
+    void countersPreRegistered() {
+        for (String result : new String[] {"SUCCESS", "FAILED", "LOCKED", "SUSPENDED"}) {
+            for (String method : new String[] {"PASSWORD", "GOOGLE"}) {
+                assertThat(meters.find("jp.auth.login").tags("result", result, "method", method).counter()).isNotNull();
+            }
+        }
+        for (String type : new String[] {"SIGNUP", "RESET", "EMAIL_CHANGE", "NOTICE"}) {
+            for (String result : new String[] {"SENT", "FAILED"}) {
+                assertThat(meters.find("jp.auth.mail").tags("type", type, "result", result).counter()).isNotNull();
+            }
+        }
+        assertThat(meters.find("jp.auth.breach_check_failed").counter()).isNotNull();
+    }
+
+    @Test
     @DisplayName("지표: 요청 제한에 걸리면 jp_ratelimit_rejected_total{rule} — 감사 기록의 rule 값과 같다 (메일만 안 보내는 signup-resend도)")
     void rateLimitMetrics() throws Exception {
         double loginIp = count("jp.ratelimit.rejected", "rule", "login-ip");
