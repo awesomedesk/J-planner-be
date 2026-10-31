@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.common.metrics.SecurityMetrics;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +24,8 @@ class PasswordConfig {
      */
     @Bean
     BreachedPasswords breachedPasswords(@Value("${app.auth.hibp.enabled:true}") boolean enabled,
-                                        @Value("${app.auth.hibp.url:https://api.pwnedpasswords.com/range/}") String url) {
+                                        @Value("${app.auth.hibp.url:https://api.pwnedpasswords.com/range/}") String url,
+                                        SecurityMetrics metrics) {
         if (!enabled) {
             return password -> false;
         }
@@ -36,6 +38,6 @@ class PasswordConfig {
             .header("Add-Padding", "true")
             .header("User-Agent", "j-planner")
             .retrieve()
-            .body(String.class));
+            .body(String.class), metrics::breachCheckFailed);
     }
 }

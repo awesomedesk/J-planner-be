@@ -20,10 +20,21 @@ import lombok.extern.slf4j.Slf4j;
 public class HibpBreachedPasswords implements BreachedPasswords {
 
     private final Function<String, String> rangeFetcher;
+    private final Runnable onUnreachable;
 
     /** @param rangeFetcher SHA-1 앞 5글자 → 응답 본문 */
     public HibpBreachedPasswords(Function<String, String> rangeFetcher) {
+        this(rangeFetcher, () -> {
+        });
+    }
+
+    /**
+     * @param rangeFetcher  SHA-1 앞 5글자 → 응답 본문
+     * @param onUnreachable HIBP에 닿지 못해 확인 없이 진행할 때마다 (지표 jp_auth_breach_check_failed_total, US-41)
+     */
+    public HibpBreachedPasswords(Function<String, String> rangeFetcher, Runnable onUnreachable) {
         this.rangeFetcher = rangeFetcher;
+        this.onUnreachable = onUnreachable;
     }
 
     @Override
@@ -36,6 +47,7 @@ public class HibpBreachedPasswords implements BreachedPasswords {
             body = rangeFetcher.apply(prefix);
         } catch (RuntimeException e) {
             log.warn("유출 비밀번호 확인(HIBP) 실패 — 막지 않고 진행: {}", e.toString());
+            onUnreachable.run();
             return false;
         }
         if (body == null) {

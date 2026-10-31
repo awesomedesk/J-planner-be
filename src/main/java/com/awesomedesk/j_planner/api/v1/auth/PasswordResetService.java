@@ -96,7 +96,6 @@ public class PasswordResetService {
         try {
             mailer.sendPasswordReset(email, member.name(), webBaseUrl + RESET_PATH + token);
         } catch (RuntimeException e) {
-            // TODO(US-41) jp_auth_mail_total{type=RESET,result=FAILED}
             log.error("비밀번호 재설정 메일 실패: {}", EmailMasker.mask(email), e);
         }
     }
@@ -132,7 +131,6 @@ public class PasswordResetService {
             try {
                 mailer.sendPasswordChanged(email, member.name());
             } catch (RuntimeException e) {
-                // TODO(US-41) jp_auth_mail_total{type=NOTICE,result=FAILED}
                 log.error("비밀번호 바뀜 알림 메일 실패: {}", EmailMasker.mask(email), e);
             }
         }

@@ -249,7 +249,7 @@ public class GoogleAccounts {
         try {
             send.run();
         } catch (RuntimeException e) {
-            // 알림 메일이 안 가도 연결·해제는 그대로. TODO(US-41) jp_auth_mail_total{type=NOTICE,result=FAILED}
+            // 알림 메일이 안 가도 연결·해제는 그대로.
             log.error("구글 연결 알림 메일 실패: {}", EmailMasker.mask(email), e);
         }
     }

@@ -38,6 +38,18 @@ springdoc:
     disable-swagger-default-url: true
 
 # FE 주소 (CORS). 여러 개면 쉼표로 구분
+# 관제 (US-41, 07 11-6): Actuator는 앱(8080)과 다른 관리 포트에서만 연다 — health·prometheus만.
+# 관리 포트는 사설망에만 (tst·prd는 JP_MANAGEMENT_ADDRESS로 묶는 주소를 정한다). /api/**로는 열지 않는다
+management:
+  server:
+    port: ${JP_MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
 app:
   # 믿는 프록시 (US-41): 이 주소(CIDR, 쉼표 목록)에서 온 연결만 X-Forwarded-For로 진짜 IP를 정한다 (ClientIp). 로컬은 프록시 없음
   network:

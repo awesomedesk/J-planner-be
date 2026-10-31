@@ -83,7 +83,6 @@ public class DormantAccounts {
             try {
                 mailer.sendDormantNotice(email, (String) member.get("name"), dormantAt.toLocalDate(), webBaseUrl + LOGIN_PATH);
             } catch (RuntimeException e) {
-                // TODO(US-41) jp_auth_mail_total{type=NOTICE,result=FAILED}
                 log.error("휴면 안내 메일 실패: {}", EmailMasker.mask(email), e);
             }
         }
@@ -149,7 +148,6 @@ public class DormantAccounts {
         try {
             mailer.sendDormantRestored(restored.email(), restored.name());
         } catch (RuntimeException e) {
-            // TODO(US-41) jp_auth_mail_total{type=NOTICE,result=FAILED}
             log.error("휴면 복원 알림 메일 실패: {}", EmailMasker.mask(restored.email()), e);
         }
         return true;

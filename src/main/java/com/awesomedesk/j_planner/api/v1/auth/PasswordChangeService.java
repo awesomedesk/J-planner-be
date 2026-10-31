@@ -53,7 +53,6 @@ public class PasswordChangeService {
             try {
                 mailer.sendPasswordChanged(email, (String) member.get("name"));
             } catch (RuntimeException e) {
-                // TODO(US-41) jp_auth_mail_total{type=NOTICE,result=FAILED}
                 log.error("비밀번호 바뀜 알림 메일 실패: {}", EmailMasker.mask(email), e);
             }
         }

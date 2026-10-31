@@ -161,7 +161,6 @@ public class EmailChangeService {
         try {
             send.run();
         } catch (RuntimeException e) {
-            // TODO(US-41) jp_auth_mail_total{type=EMAIL_CHANGE|NOTICE,result=FAILED}
             log.error("이메일 변경 메일 실패: {}", EmailMasker.mask(email), e);
         }
     }

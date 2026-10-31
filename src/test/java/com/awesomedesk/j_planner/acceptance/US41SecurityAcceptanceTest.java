@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Properties;
 import java.util.Set;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
+import org.springframework.core.io.FileSystemResource;
 
 /**
  * US-41 서비스가 보안 기본 설정(헤더·CORS·CSRF·요청 제한·오류 응답·비밀값·공급망)을 갖춘다 (SEC-04~13·15).
@@ -182,12 +185,19 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
     }
 
     @Test
-    @DisplayName("지표는 Prometheus 형식으로 내보낸다 (이름 jp_auth_login_total …). Actuator는 앱 주소(/api와 같은 포트)에서 열리지 않는다 — 관리 포트 따로")
+    @DisplayName("지표는 Prometheus 형식으로 내보낸다 (이름 jp_auth_login_total …). Actuator는 앱 포트와 다른 관리 포트에서 health·prometheus만 연다")
     void prometheusOnManagementPortOnly() throws Exception {
         browser("198.51.100.44").withCsrf().login(KIM, PW).andExpect(status().isOk());
         assertThat(prometheus.scrape()).contains("jp_auth_login_total{method=\"PASSWORD\",result=\"SUCCESS\"}");
-        browser("198.51.100.45").get("/actuator/prometheus").andExpect(status().isNotFound());
-        browser("198.51.100.45").get("/actuator/health").andExpect(status().isNotFound());
+        // 테스트(MockMvc)는 관리 포트를 따로 띄우지 않고 테스트 설정이 메인 application.yml을 대신해서, 메인 설정 파일 값으로 확인한다.
+        // 실제 서버 확인: 8080/actuator/health 404, 8081/actuator/prometheus 200
+        YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(new FileSystemResource("src/main/resources/application.yml"));
+        Properties main = yaml.getObject();
+        assertThat(main.getProperty("management.server.port")).isEqualTo("${JP_MANAGEMENT_PORT:8081}");
+        assertThat(main.getProperty("server.port")).isEqualTo("8080");
+        assertThat(main.getProperty("management.endpoints.web.exposure.include")).isEqualTo("health,prometheus");
+        browser("198.51.100.45").get("/actuator/env").andExpect(status().isNotFound());
     }
 
     // ------------------------------------------------------------------ 도우미

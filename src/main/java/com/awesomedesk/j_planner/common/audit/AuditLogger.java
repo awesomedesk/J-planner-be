@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.common.audit;
 
+import com.awesomedesk.j_planner.common.metrics.SecurityMetrics;
 import com.awesomedesk.j_planner.common.net.ClientIp;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
@@ -30,6 +31,7 @@ public class AuditLogger {
     private final ClientIp clientIp;
     private final JsonMapper jsonMapper;
     private final Clock clock;
+    private final SecurityMetrics metrics;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void user(Long userId, AuditEvent event, HttpServletRequest request, Map<String, String> detail) {
@@ -41,6 +43,30 @@ public class AuditLogger {
             userId, event.name(), clientIp.of(request), userAgent,
             detail == null || detail.isEmpty() ? null : jsonMapper.writeValueAsString(detail),
             LocalDateTime.now(clock).withNano(0));
+        count(event, detail == null ? Map.of() : detail);
+    }
+
+    /**
+     * 감사 기록과 같은 순간에 보안 지표도 센다 (US-41, 08 13-8): 로그인 성공·실패·정지, 요청 제한(rule).
+     * 계정 대기(login-account)에 걸린 로그인 = LOCKED — 재인증(POST /me/reauth)의 대기도 같은 rule이라 함께 센다.
+     */
+    private void count(AuditEvent event, Map<String, String> detail) {
+        String method = detail.getOrDefault("method", "PASSWORD");
+        switch (event) {
+            case LOGIN -> metrics.login("SUCCESS", method);
+            case LOGIN_FAILED -> metrics.login("SUSPENDED".equals(detail.get("reason")) ? "SUSPENDED" : "FAILED", method);
+            case RATE_LIMITED -> {
+                String rule = detail.get("rule");
+                if (rule != null) {
+                    metrics.rateLimited(rule);
+                }
+                if ("login-account".equals(rule)) {
+                    metrics.login("LOCKED", "PASSWORD");
+                }
+            }
+            default -> {
+            }
+        }
     }
 
     /** 사람이 아닌 서버 작업이 한 일 (휴면·휴면 삭제, US-38). IP·브라우저 없음 */

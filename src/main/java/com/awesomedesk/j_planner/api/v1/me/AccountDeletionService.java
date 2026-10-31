@@ -49,7 +49,6 @@ public class AccountDeletionService {
             try {
                 mailer.sendAccountDeleted(email, (String) member.get("name"));
             } catch (RuntimeException e) {
-                // TODO(US-41) jp_auth_mail_total{type=NOTICE,result=FAILED}
                 log.error("탈퇴 완료 메일 실패: {}", EmailMasker.mask(email), e);
             }
         }

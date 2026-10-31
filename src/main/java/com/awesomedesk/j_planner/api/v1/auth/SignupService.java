@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.common.metrics.SecurityMetrics;
 import com.awesomedesk.j_planner.common.net.ClientIp;
 import com.awesomedesk.j_planner.api.v1.user.MemberEmails;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
@@ -45,6 +46,7 @@ public class SignupService {
 
     private final JdbcTemplate jdbc;
     private final ClientIp clientIp;
+    private final SecurityMetrics metrics;
     private final MemberEmails memberEmails;
     private final PendingSignups pendingSignups;
     private final LoginMethods loginMethods;
@@ -56,12 +58,13 @@ public class SignupService {
     private final Clock clock;
     private final String webBaseUrl;
 
-    public SignupService(JdbcTemplate jdbc, MemberEmails memberEmails, ClientIp clientIp, PendingSignups pendingSignups, LoginMethods loginMethods, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
+    public SignupService(JdbcTemplate jdbc, MemberEmails memberEmails, ClientIp clientIp, SecurityMetrics metrics, PendingSignups pendingSignups, LoginMethods loginMethods, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
                          AuthMailer mailer, RateLimits rateLimits, AuditLogger audit, Clock clock,
                          @Value("${app.web.base-url}") String webBaseUrl) {
         this.jdbc = jdbc;
         this.memberEmails = memberEmails;
         this.clientIp = clientIp;
+        this.metrics = metrics;
         this.pendingSignups = pendingSignups;
         this.loginMethods = loginMethods;
         this.passwordPolicy = passwordPolicy;
@@ -126,6 +129,7 @@ public class SignupService {
         }
         if (!rateLimits.tryHit("signup-resend-day", email, 10, Duration.ofDays(1))) {
             log.info("인증 메일 다시 보내기 하루 한도: {}", EmailMasker.mask(email));
+            metrics.rateLimited("signup-resend"); // 감사 기록 없이 지표만 (08 13-8)
             return;
         }
         String token = SignupTokens.newToken();
@@ -151,7 +155,7 @@ public class SignupService {
         try {
             mailer.sendSignupVerification(email, name, webBaseUrl + VERIFY_PATH + token);
         } catch (RuntimeException e) {
-            // 메일이 안 가도 202 — 사용자는 '다시 보내기'를 누를 수 있다. TODO(US-41) jp_auth_mail_total{type=SIGNUP,result=FAILED}
+            // 메일이 안 가도 202 — 사용자는 '다시 보내기'를 누를 수 있다.
             log.error("가입 인증 메일 실패: {}", EmailMasker.mask(email), e);
         }
     }

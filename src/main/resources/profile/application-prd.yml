@@ -8,6 +8,7 @@
 #   JP_MAIL_FROM     보내는 주소 (기본 no-reply@awesomedesk.co.kr)
 #   JP_TRUSTED_PROXIES  앞단 프록시(Caddy/nginx) 주소 CIDR, 쉼표 목록 (US-41, 예 10.0.0.2/32) — 기본값 없음. 프록시가 없으면 빈 값으로 명시
 #   JP_RATELIMIT_KEY  요청 제한 키 HMAC 비밀 키 (US-41, base64 32바이트 이상, 예: openssl rand -base64 32) — 기본값 없음
+#   JP_MANAGEMENT_ADDRESS  관리 포트(Actuator health·prometheus)를 묶을 사설 주소 (US-41, 예 10.0.0.3) — 기본값 없음. JP_MANAGEMENT_PORT 기본 8081
 #   JP_GOOGLE_CLIENT_ID, JP_GOOGLE_CLIENT_SECRET  구글 로그인 OAuth 클라이언트 (US-36) — 기본값 없음
 spring:
   config:
@@ -29,6 +30,9 @@ spring:
     hibernate:
       ddl-auto: none
 # 운영에서는 명세 화면을 끈다
+management:
+  server:
+    address: ${JP_MANAGEMENT_ADDRESS}
 springdoc:
   api-docs:
     enabled: false
