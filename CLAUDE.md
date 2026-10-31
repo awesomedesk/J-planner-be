@@ -21,6 +21,11 @@ J-planner is a Spring Boot application designed for MBTI 'J' personality types, 
 - Read issues for BE: `gh issue list -R awesomedesk/j-planner-product --label "to:BE" --state open`. When read: `gh issue edit <n> --add-label read`; when done: `gh issue close <n> --comment "<one-line result>"`. Replies on the same topic = comment on that issue; a new topic = a new issue.
 - New issue: title `[kind] one-line summary`, labels `to:…` + `from:BE` + `kind:info|question|answer|review|result|ask`, first body line `ref: US-xx · D-xxx · commit`.
 - Keep the pinned issue **`[창 현황] BE`** up to date (now / next / last commit). Only BE edits it.
+- **GitHub Projects 2 is the owner's main screen** (https://github.com/orgs/awesomedesk/projects/2, D-089·D-092, `../j-planner-product/17-project-board.md`). "작업판 확인" = check issues **and** Projects, then actually do the work. At every work step (start / finish / switch):
+  - Every issue BE receives (`to:BE`) is linked in Projects (view 04 역할별 수신함): `구분=메시지`, `담당 창=BE`, `수신 상태` 미확인 → 읽음 (with the `read` label) → 처리 중 → 처리 완료, `확인 근거` (read label / answer and time). A new request in an old thread resets it to 미확인.
+  - **Every `to:대표님` issue BE writes is added to Projects when it is created** (view 01): important decisions `구분=결정` + `PO 추천`·`필요 시점`, everything else `구분=메시지`; fill `Status`, `담당 창`. Issues alone get missed. A new ask after the owner closed an issue = a new issue (not a comment).
+  - Update the story cards BE works on (`Status`, `담당 창`, `지금 하는 일`, `다음 일`) and the `[창 현황] BE` card fields together with issue #6. Don't add a card per message.
+  - CLI: `gh project item-add 2 --owner awesomedesk --url <issue>`, `gh project item-edit --project-id PVT_kwDOCjdxgs4Bpjjd --id <item> --field-id <field> …` (`gh project field-list 2 --owner awesomedesk` for ids; never guess ids)
 - Every request, question or confirmation for the owner is an issue with `to:대표님` — in the chat, only say "issue #n posted" plus a one-line summary.
   - Question: `kind:question`, with the options, the recommendation, by when, and how to answer (e.g. "comment ① or ②").
   - Request (something the owner must do): `kind:ask`, with step-by-step instructions and how to report the result.
@@ -37,6 +42,7 @@ J-planner is a Spring Boot application designed for MBTI 'J' personality types, 
 - **Clean**: `./gradlew clean`
 
 The project uses Gradle with wrapper scripts (`gradlew` for Unix/Mac, `gradlew.bat` for Windows).
+- Run Gradle with JDK 25 (`JAVA_HOME`/`java` on PATH = 25). `gradle.properties` turns off toolchain auto-detect/auto-download, so Gradle uses only the JDK that runs it — scanning other JDKs on the owner's Mac (e.g. a quarantined JDK 16) pops up a macOS security dialog
 
 ## Architecture
 
