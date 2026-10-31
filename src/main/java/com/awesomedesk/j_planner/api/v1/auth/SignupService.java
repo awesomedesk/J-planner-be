@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.api.v1.user.MemberEmails;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
 import com.awesomedesk.j_planner.common.error.ApiException;
@@ -42,6 +43,7 @@ public class SignupService {
     static final int NAME_MAX = 50;
 
     private final JdbcTemplate jdbc;
+    private final MemberEmails memberEmails;
     private final PendingSignups pendingSignups;
     private final LoginMethods loginMethods;
     private final PasswordPolicy passwordPolicy;
@@ -52,10 +54,11 @@ public class SignupService {
     private final Clock clock;
     private final String webBaseUrl;
 
-    public SignupService(JdbcTemplate jdbc, PendingSignups pendingSignups, LoginMethods loginMethods, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
+    public SignupService(JdbcTemplate jdbc, MemberEmails memberEmails, PendingSignups pendingSignups, LoginMethods loginMethods, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
                          AuthMailer mailer, RateLimits rateLimits, AuditLogger audit, Clock clock,
                          @Value("${app.web.base-url}") String webBaseUrl) {
         this.jdbc = jdbc;
+        this.memberEmails = memberEmails;
         this.pendingSignups = pendingSignups;
         this.loginMethods = loginMethods;
         this.passwordPolicy = passwordPolicy;
@@ -98,8 +101,7 @@ public class SignupService {
 
         limit(http, "signup-email", () -> rateLimits.hit("signup-email-day", email, 5, Duration.ofDays(1)));
 
-        Long userId = jdbc.query("SELECT user_id FROM users WHERE email = ?", rs -> rs.next() ? rs.getLong(1) : null, email);
-        // TODO(US-38) 휴면 회원 이메일(dormant_profiles.email)도 '이미 가입됨'
+        Long userId = memberEmails.findUserId(email); // 휴면 회원 이메일도 '이미 가입됨' (US-38)
         if (userId != null) {
             throw new EmailAlreadyRegisteredException(loginMethods.forConflict(userId));
         }

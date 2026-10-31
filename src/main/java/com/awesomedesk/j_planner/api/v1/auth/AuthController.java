@@ -1,6 +1,5 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
-import com.awesomedesk.j_planner.api.v1.me.MeResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -67,7 +66,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public MeResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http, HttpServletResponse response) {
+    public LoginResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http, HttpServletResponse response) {
         return loginService.login(request, http, response);
     }
 

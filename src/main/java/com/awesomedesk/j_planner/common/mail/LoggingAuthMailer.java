@@ -1,6 +1,7 @@
 package com.awesomedesk.j_planner.common.mail;
 
 import com.awesomedesk.j_planner.common.log.EmailMasker;
+import java.time.LocalDate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -60,5 +61,15 @@ public class LoggingAuthMailer implements AuthMailer {
     @Override
     public void sendAccountDeleted(String to, String name) {
         log.info("[가짜 메일] 탈퇴 완료 알림 from={} to={}", from, EmailMasker.mask(to));
+    }
+
+    @Override
+    public void sendDormantNotice(String to, String name, LocalDate dormantOn, String link) {
+        log.info("[가짜 메일] 휴면 안내 from={} to={} — {}까지 로그인하지 않으면 휴면, 링크: {}", from, EmailMasker.mask(to), dormantOn, link);
+    }
+
+    @Override
+    public void sendDormantRestored(String to, String name) {
+        log.info("[가짜 메일] 휴면 복원 알림 from={} to={}", from, EmailMasker.mask(to));
     }
 }

@@ -41,4 +41,12 @@ public class AuditLogger {
             detail == null || detail.isEmpty() ? null : jsonMapper.writeValueAsString(detail),
             LocalDateTime.now(clock).withNano(0));
     }
+
+    /** 사람이 아닌 서버 작업이 한 일 (휴면·휴면 삭제, US-38). IP·브라우저 없음 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void system(long userId, AuditEvent event, Map<String, String> detail) {
+        jdbc.update("INSERT INTO audit_logs (user_id, actor, event, detail, created_at) VALUES (?, 'SYSTEM', ?, ?, ?)",
+            userId, event.name(), detail == null || detail.isEmpty() ? null : jsonMapper.writeValueAsString(detail),
+            LocalDateTime.now(clock).withNano(0));
+    }
 }

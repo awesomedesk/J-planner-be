@@ -2,6 +2,8 @@ package com.awesomedesk.j_planner.api.v1.auth.google;
 
 import com.awesomedesk.j_planner.api.v1.auth.EmailAddress;
 import com.awesomedesk.j_planner.api.v1.auth.PasswordCredentials;
+import com.awesomedesk.j_planner.api.v1.user.DormantAccounts;
+import com.awesomedesk.j_planner.api.v1.user.MemberEmails;
 import com.awesomedesk.j_planner.api.v1.user.UserDataInitializer;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
@@ -25,10 +27,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 구글 계정 규칙 (US-36, 08 13-5, D-061: 합치기 없음, 연결은 내 계정에서만).
  * <table>
- *   <tr><td>연결된 구글(sub)</td><td>그 회원으로 로그인 (정지면 ACCOUNT_SUSPENDED)</td></tr>
+ *   <tr><td>연결된 구글(sub)</td><td>그 회원으로 로그인 (정지면 ACCOUNT_SUSPENDED, 휴면이면 복원 — US-38)</td></tr>
  *   <tr><td>처음 보는 구글 + 같은 이메일 회원 없음 + email_verified</td><td>가입 확인 화면 /signup/google (D-083) → [가입하기]에서
  *       새 회원 + 연결 + 기본 데이터, 같은 이메일 임시 가입은 지움. 다시 로그인 팝업이면 가입하지 않고 GOOGLE_NOT_REGISTERED</td></tr>
- *   <tr><td>처음 보는 구글 + 같은 이메일 회원 있음</td><td>새 계정 안 만듦 → GOOGLE_EMAIL_ACCOUNT_EXISTS</td></tr>
+ *   <tr><td>처음 보는 구글 + 같은 이메일 회원 있음 (휴면 회원 포함)</td><td>새 계정 안 만듦 → GOOGLE_EMAIL_ACCOUNT_EXISTS</td></tr>
  *   <tr><td>email_verified 아님·이메일 없음</td><td>GOOGLE_FAILED</td></tr>
  * </table>
  */
@@ -50,6 +52,8 @@ public class GoogleAccounts {
     private final AuthMailer mailer;
     private final TransactionTemplate transaction;
     private final com.awesomedesk.j_planner.api.v1.auth.LoginMethods loginMethods;
+    private final MemberEmails memberEmails;
+    private final DormantAccounts dormantAccounts;
     private final Clock clock;
 
     /** 구글 로그인 결과: 로그인할 회원, 가입 확인이 필요함(D-083), 또는 FE에 보낼 오류 코드 */
@@ -85,8 +89,7 @@ public class GoogleAccounts {
             log.info("구글 가입 거절: 이메일 인증 안 됨 또는 이메일 없음");
             return LoginResult.fail(GoogleFlow.GOOGLE_FAILED);
         }
-        // TODO(US-38) 휴면 회원 이메일(dormant_profiles.email)도 '이미 가입됨'
-        if (emailTaken(google.email())) {
+        if (memberEmails.taken(google.email())) {
             log.info("구글 가입 거절 — 같은 이메일 회원 있음: {}", EmailMasker.mask(google.email()));
             return LoginResult.fail(GoogleFlow.GOOGLE_EMAIL_ACCOUNT_EXISTS);
         }
@@ -106,7 +109,7 @@ public class GoogleAccounts {
                 if (identities.findUserBySubject(google.sub()) != null) {
                     return null;
                 }
-                Long sameEmail = jdbc.query("SELECT user_id FROM users WHERE email = ?", rs -> rs.next() ? rs.getLong(1) : null, google.email());
+                Long sameEmail = memberEmails.findUserId(google.email());
                 if (sameEmail != null) {
                     throw new com.awesomedesk.j_planner.common.error.EmailAlreadyRegisteredException(loginMethods.forConflict(sameEmail));
                 }
@@ -122,13 +125,10 @@ public class GoogleAccounts {
         return userId;
     }
 
-    private boolean emailTaken(String email) {
-        return jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE email = ?", Integer.class, email) > 0;
-    }
-
-    /** 로그인 세션을 만든 뒤: 마지막 로그인 시각 + 감사 기록 */
+    /** 로그인 세션을 만든 뒤: 휴면이면 복원(US-38, 정지는 login에서 걸렀다) + 마지막 로그인 시각·휴면 안내 기록 지움 + 감사 기록 */
     void recordLogin(long userId, HttpServletRequest http) {
-        jdbc.update("UPDATE users SET last_login_at = ? WHERE user_id = ?", now(), userId);
+        dormantAccounts.restore(userId, http);
+        jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = NULL WHERE user_id = ?", now(), userId);
         audit.user(userId, AuditEvent.LOGIN, http, GOOGLE_METHOD);
     }
 

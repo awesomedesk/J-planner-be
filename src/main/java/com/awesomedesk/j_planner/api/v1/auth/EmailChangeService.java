@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.api.v1.user.MemberEmails;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
 import com.awesomedesk.j_planner.common.auth.DeviceSessions;
@@ -45,6 +46,7 @@ public class EmailChangeService {
     static final String VERIFY_PATH = "/email/verify?token=";
 
     private final JdbcTemplate jdbc;
+    private final MemberEmails memberEmails;
     private final Reauthentication reauthentication;
     private final LoginMethods loginMethods;
     private final RateLimits rateLimits;
@@ -55,10 +57,11 @@ public class EmailChangeService {
     private final Clock clock;
     private final String webBaseUrl;
 
-    public EmailChangeService(JdbcTemplate jdbc, Reauthentication reauthentication, LoginMethods loginMethods, RateLimits rateLimits,
+    public EmailChangeService(JdbcTemplate jdbc, MemberEmails memberEmails, Reauthentication reauthentication, LoginMethods loginMethods, RateLimits rateLimits,
                               AuthMailer mailer, DeviceSessions deviceSessions, AuditLogger audit, TransactionTemplate transaction, Clock clock,
                               @Value("${app.web.base-url}") String webBaseUrl) {
         this.jdbc = jdbc;
+        this.memberEmails = memberEmails;
         this.reauthentication = reauthentication;
         this.loginMethods = loginMethods;
         this.rateLimits = rateLimits;
@@ -88,8 +91,7 @@ public class EmailChangeService {
             audit.user(userId, AuditEvent.RATE_LIMITED, http, Map.of("rule", "email-change-user"));
             throw e;
         }
-        // TODO(US-38) 휴면 회원 이메일(dormant_profiles.email)도 '이미 가입됨'
-        Long owner = jdbc.query("SELECT user_id FROM users WHERE email = ?", rs -> rs.next() ? rs.getLong(1) : null, email);
+        Long owner = memberEmails.findUserId(email); // 휴면 회원 이메일도 '이미 가입됨' (US-38)
         if (owner != null) {
             throw new EmailAlreadyRegisteredException(loginMethods.forConflict(owner));
         }
@@ -145,7 +147,7 @@ public class EmailChangeService {
         long userId = ((Number) found.getFirst().get("user_id")).longValue();
         String email = (String) found.getFirst().get("new_email");
         jdbc.update("UPDATE auth_tokens SET used_at = ? WHERE user_id = ? AND purpose = ? AND used_at IS NULL", now, userId, PURPOSE);
-        if (jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE email = ?", Integer.class, email) > 0) {
+        if (memberEmails.taken(email)) {
             return null;
         }
         jdbc.update("DELETE FROM pending_signups WHERE email = ?", email); // 이메일 하나에 계정 하나 (D-061)

@@ -76,7 +76,7 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
 
         assertThat(mailer.sentTo(KIM, "DORMANT_NOTICE")).hasSize(1);
         assertThat(mailer.sentTo("lee@test.local")).isEmpty();
-        assertThat(status(kim)).isEqualTo("ACTIVE");
+        assertThat(memberStatus(kim)).isEqualTo("ACTIVE");
     }
 
     @Test
@@ -97,7 +97,7 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
 
         clock.advance(Duration.ofDays(31));
         dormancy.run();
-        assertThat(status(kim)).isEqualTo("ACTIVE");
+        assertThat(memberStatus(kim)).isEqualTo("ACTIVE");
     }
 
     // ------------------------------------------------------------------ 휴면
@@ -133,15 +133,15 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
         lastLogin(kim, now().minusYears(2));
         dormancy.run();
         assertThat(mailer.sentTo(KIM, "DORMANT_NOTICE")).hasSize(1);
-        assertThat(status(kim)).isEqualTo("ACTIVE");
+        assertThat(memberStatus(kim)).isEqualTo("ACTIVE");
 
         clock.advance(Duration.ofDays(29));
         dormancy.run();
-        assertThat(status(kim)).isEqualTo("ACTIVE");
+        assertThat(memberStatus(kim)).isEqualTo("ACTIVE");
 
         clock.advance(Duration.ofDays(1));
         dormancy.run();
-        assertThat(status(kim)).isEqualTo("DORMANT");
+        assertThat(memberStatus(kim)).isEqualTo("DORMANT");
     }
 
     // ------------------------------------------------------------------ 복원
@@ -177,7 +177,7 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
         makeDormant(kim);
         browser("203.0.113.5").withCsrf().login(KIM, "wrong-password-123")
             .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
-        assertThat(status(kim)).isEqualTo("DORMANT");
+        assertThat(memberStatus(kim)).isEqualTo("DORMANT");
     }
 
     @Test
@@ -191,7 +191,7 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
         Browser b = browser("203.0.113.7");
         assertThat(callback(b, start(b), hong)).isEqualTo(FE + "/");
         b.get(ME).andExpect(status().isOk()).andExpect(jsonPath("$.email").value("hong@gmail.com"));
-        assertThat(status(id)).isEqualTo("ACTIVE");
+        assertThat(memberStatus(id)).isEqualTo("ACTIVE");
         assertThat(audits(id)).containsSubsequence("DORMANT", "DORMANT_RESTORED", "LOGIN");
         assertThat(mailer.sentTo("hong@gmail.com", "DORMANT_RESTORED")).hasSize(1);
     }
@@ -206,7 +206,7 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
 
         String token = token(mailer.sentTo(KIM, "RESET").getFirst().link());
         b.postJson(RESET, "{\"token\":\"" + token + "\",\"newPassword\":\"brand-new-password-678\"}").andExpect(status().isNoContent());
-        assertThat(status(kim)).isEqualTo("DORMANT");
+        assertThat(memberStatus(kim)).isEqualTo("DORMANT");
         assertThat(mailer.sentTo(KIM, "PASSWORD_CHANGED")).hasSize(1);
 
         b.login(KIM, "brand-new-password-678").andExpect(status().isOk()).andExpect(jsonPath("$.restored").value(true));
@@ -245,12 +245,12 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
         LocalDateTime suspendedAt = now().minusDays(400);
         jdbc.update("UPDATE users SET suspended_at = ? WHERE user_id = ?", suspendedAt, kim);
         makeDormant(kim);
-        assertThat(status(kim)).isEqualTo("DORMANT");
+        assertThat(memberStatus(kim)).isEqualTo("DORMANT");
         assertThat(jdbc.queryForObject("SELECT suspended_at FROM users WHERE user_id = ?", LocalDateTime.class, kim)).isEqualTo(suspendedAt);
 
         browser("203.0.113.12").withCsrf().login(KIM, PW)
             .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCOUNT_SUSPENDED"));
-        assertThat(status(kim)).isEqualTo("DORMANT");
+        assertThat(memberStatus(kim)).isEqualTo("DORMANT");
         assertThat(mailer.sentTo(KIM, "DORMANT_RESTORED")).isEmpty();
 
         jdbc.update("UPDATE users SET suspended_at = NULL WHERE user_id = ?", kim);
@@ -276,7 +276,7 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
         assertThat(jdbc.queryForList("SELECT email FROM dormant_profiles", String.class)).containsExactly("lee@test.local");
         assertThat(jdbc.queryForList("SELECT CONCAT(actor, ' ', event, ' ', CAST(detail AS CHAR)) FROM audit_logs WHERE user_id = ? AND event = 'ACCOUNT_DELETED'",
             String.class, kim)).containsExactly("SYSTEM ACCOUNT_DELETED {\"reason\": \"DORMANT_EXPIRED\"}");
-        assertThat(status(lee)).isEqualTo("DORMANT");
+        assertThat(memberStatus(lee)).isEqualTo("DORMANT");
         assertThat(mailer.sentTo(KIM, "ACCOUNT_DELETED")).isEmpty();
 
         browser("203.0.113.14").withCsrf()
@@ -299,10 +299,10 @@ class US38DormantAcceptanceTest extends BrowserAcceptanceTest {
         jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = ? WHERE user_id = ?",
             now().minusYears(1).minusDays(1), now().minusDays(30), userId);
         dormancy.run();
-        assertThat(status(userId)).isEqualTo("DORMANT");
+        assertThat(memberStatus(userId)).isEqualTo("DORMANT");
     }
 
-    private String status(long userId) {
+    private String memberStatus(long userId) {
         return jdbc.queryForObject("SELECT status FROM users WHERE user_id = ?", String.class, userId);
     }
 

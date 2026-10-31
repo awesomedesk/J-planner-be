@@ -1,7 +1,7 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
-import com.awesomedesk.j_planner.api.v1.me.MeResponse;
 import com.awesomedesk.j_planner.api.v1.me.MeService;
+import com.awesomedesk.j_planner.api.v1.user.DormantAccounts;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
 import com.awesomedesk.j_planner.common.auth.DeviceSessions;
@@ -25,9 +25,9 @@ import org.springframework.stereotype.Service;
  * 이메일 로그인 (US-34, 08 13-3·13-7).
  * <ol>
  *   <li>IP별 횟수 → 계정별 대기 확인 (넘으면 429)</li>
- *   <li>회원·비밀번호 해시 찾기 → 비교 (없는 계정도 가짜 해시로 한 번 비교 = 같은 시간)</li>
+ *   <li>회원·비밀번호 해시 찾기 → 비교 (없는 계정도 가짜 해시로 한 번 비교 = 같은 시간). 휴면 회원은 dormant_profiles의 이메일로 찾는다 (US-38)</li>
  *   <li>틀리면 실패 수 +1, 401 문구 하나. 맞는데 정지면 403</li>
- *   <li>맞으면 실패 수 초기화, 새 세션(기기 10대 유지), last_login_at, 감사 기록</li>
+ *   <li>맞으면 실패 수 초기화, 휴면이면 복원(정지면 위에서 403이라 복원 안 함), 새 세션(기기 10대 유지), last_login_at·휴면 안내 기록 지움, 감사 기록</li>
  * </ol>
  * 실패도 감사 기록·카운터가 남아야 해서 트랜잭션으로 묶지 않는다.
  */
@@ -45,9 +45,10 @@ public class LoginService {
     private final DeviceSessions deviceSessions;
     private final AuditLogger audit;
     private final MeService meService;
+    private final DormantAccounts dormantAccounts;
     private final Clock clock;
 
-    public MeResponse login(LoginRequest request, HttpServletRequest http, HttpServletResponse response) {
+    public LoginResponse login(LoginRequest request, HttpServletRequest http, HttpServletResponse response) {
         String email = request.email().strip().toLowerCase(Locale.ROOT);
         Member member = findMember(email);
         Long userId = member == null ? null : member.id();
@@ -78,10 +79,11 @@ public class LoginService {
         }
 
         rateLimiter.recordSuccess(email);
+        boolean restored = dormantAccounts.restore(member.id(), http);
         deviceSessions.start(member.id(), http, response);
-        jdbc.update("UPDATE users SET last_login_at = ? WHERE user_id = ?", LocalDateTime.now(clock).withNano(0), member.id());
+        jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = NULL WHERE user_id = ?", LocalDateTime.now(clock).withNano(0), member.id());
         audit.user(userId, AuditEvent.LOGIN, http, PASSWORD);
-        return meService.get(member.id());
+        return LoginResponse.of(meService.get(member.id()), restored);
     }
 
     public void logout(HttpServletRequest http) {
@@ -93,8 +95,10 @@ public class LoginService {
     }
 
     private Member findMember(String email) {
-        List<Member> found = jdbc.query("SELECT user_id, suspended_at IS NOT NULL AS suspended FROM users WHERE email = ?",
-            (rs, i) -> new Member(rs.getLong("user_id"), rs.getBoolean("suspended")), email);
+        List<Member> found = jdbc.query("""
+                SELECT u.user_id, u.suspended_at IS NOT NULL AS suspended
+                FROM users u LEFT JOIN dormant_profiles d ON d.user_id = u.user_id WHERE u.email = ? OR d.email = ?""",
+            (rs, i) -> new Member(rs.getLong("user_id"), rs.getBoolean("suspended")), email, email);
         return found.isEmpty() ? null : found.getFirst();
     }
 

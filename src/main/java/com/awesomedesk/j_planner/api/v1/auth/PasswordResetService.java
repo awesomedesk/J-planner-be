@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.api.v1.user.MemberEmails;
 import com.awesomedesk.j_planner.common.audit.AuditEvent;
 import com.awesomedesk.j_planner.common.audit.AuditLogger;
 import com.awesomedesk.j_planner.common.auth.DeviceSessions;
@@ -38,6 +39,7 @@ public class PasswordResetService {
     static final String RESET_PATH = "/password/reset?token=";
 
     private final JdbcTemplate jdbc;
+    private final MemberEmails memberEmails;
     private final PasswordResetTokens tokens;
     private final PasswordPolicy passwordPolicy;
     private final PasswordEncoder encoder;
@@ -49,11 +51,12 @@ public class PasswordResetService {
     private final Clock clock;
     private final String webBaseUrl;
 
-    public PasswordResetService(JdbcTemplate jdbc, PasswordResetTokens tokens, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
+    public PasswordResetService(JdbcTemplate jdbc, MemberEmails memberEmails, PasswordResetTokens tokens, PasswordPolicy passwordPolicy, PasswordEncoder encoder,
                                 AuthMailer mailer, RateLimits rateLimits, LoginRateLimiter loginRateLimiter,
                                 DeviceSessions deviceSessions, AuditLogger audit, Clock clock,
                                 @Value("${app.web.base-url}") String webBaseUrl) {
         this.jdbc = jdbc;
+        this.memberEmails = memberEmails;
         this.tokens = tokens;
         this.passwordPolicy = passwordPolicy;
         this.encoder = encoder;
@@ -80,13 +83,11 @@ public class PasswordResetService {
             audit.user(null, AuditEvent.RATE_LIMITED, http, Map.of("rule", "forgot-email"));
             return;
         }
-        // TODO(US-38) 휴면 회원(dormant_profiles.email)
-        List<Member> found = jdbc.query("SELECT user_id, name FROM users WHERE email = ?",
-            (rs, i) -> new Member(rs.getLong("user_id"), rs.getString("name")), email);
-        if (found.isEmpty()) {
+        Long userId = memberEmails.findUserId(email); // 휴면 회원도 휴면 이메일로 (US-38) — 재설정만으로는 복원하지 않고, 로그인하면 복원
+        if (userId == null) {
             return; // 회원이 아니면 메일 없이 같은 202 (임시 가입 중인 이메일 포함)
         }
-        Member member = found.getFirst();
+        Member member = new Member(userId, memberEmails.contact(userId).name());
         LocalDateTime now = now();
         String token = SignupTokens.newToken();
         tokens.issue(member.id(), SignupTokens.hash(token), now, now.plus(LINK_LIFETIME));
@@ -122,13 +123,13 @@ public class PasswordResetService {
             throw new ApiException(ErrorCode.TOKEN_INVALID); // 그 사이 다른 요청이 먼저 씀
         }
         deviceSessions.endAll(userId);
-        Map<String, Object> member = jdbc.queryForMap("SELECT email, name FROM users WHERE user_id = ?", userId);
-        String email = (String) member.get("email");
+        MemberEmails.Contact member = memberEmails.contact(userId);
+        String email = member.email();
         audit.user(userId, AuditEvent.PASSWORD_CHANGED, http, Map.of("method", "RESET"));
         if (email != null) {
             loginRateLimiter.recordSuccess(email); // 실패로 막혀 있던 계정도 새 비밀번호로 바로 로그인
             try {
-                mailer.sendPasswordChanged(email, (String) member.get("name"));
+                mailer.sendPasswordChanged(email, member.name());
             } catch (RuntimeException e) {
                 // TODO(US-41) jp_auth_mail_total{type=NOTICE,result=FAILED}
                 log.error("비밀번호 바뀜 알림 메일 실패: {}", EmailMasker.mask(email), e);

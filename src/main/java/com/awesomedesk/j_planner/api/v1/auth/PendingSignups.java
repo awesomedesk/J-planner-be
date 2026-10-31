@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth;
 
+import com.awesomedesk.j_planner.api.v1.user.MemberEmails;
 import com.awesomedesk.j_planner.api.v1.user.UserDataInitializer;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 class PendingSignups {
 
     private final JdbcTemplate jdbc;
+    private final MemberEmails memberEmails;
     private final PasswordCredentials passwordCredentials;
     private final UserDataInitializer userDataInitializer;
 
@@ -55,8 +57,7 @@ class PendingSignups {
         }
         Row pending = found.getFirst();
         jdbc.update("DELETE FROM pending_signups WHERE pending_id = ?", pending.id());
-        Long existing = jdbc.query("SELECT user_id FROM users WHERE email = ?", rs -> rs.next() ? rs.getLong(1) : null, pending.email());
-        if (existing != null) {
+        if (memberEmails.taken(pending.email())) {
             return null;
         }
         jdbc.update("INSERT INTO users (email, name, status, created_at, updated_at) VALUES (?, ?, 'ACTIVE', ?, ?)",
