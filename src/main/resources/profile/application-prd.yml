@@ -9,6 +9,7 @@
 #   JP_TRUSTED_PROXIES  앞단 프록시(Caddy/nginx) 주소 CIDR, 쉼표 목록 (US-41, 예 10.0.0.2/32) — 기본값 없음. 프록시가 없으면 빈 값으로 명시
 #   JP_RATELIMIT_KEY  요청 제한 키 HMAC 비밀 키 (US-41, base64 32바이트 이상, 예: openssl rand -base64 32) — 기본값 없음
 #   JP_MANAGEMENT_ADDRESS  관리 포트(Actuator health·prometheus)를 묶을 사설 주소 (US-41, 예 10.0.0.3) — 기본값 없음. JP_MANAGEMENT_PORT 기본 8081
+#   JP_DATA_KEY  일기·메모 암호화 키 (US-41, base64 32바이트, 예: openssl rand -base64 32) — 기본값 없음. 잃으면 되돌릴 수 없으니 서버 밖에 따로 보관
 #   JP_GOOGLE_CLIENT_ID, JP_GOOGLE_CLIENT_SECRET  구글 로그인 OAuth 클라이언트 (US-36) — 기본값 없음
 spring:
   config:
@@ -44,6 +45,8 @@ app:
     trusted-proxies: ${JP_TRUSTED_PROXIES}
   ratelimit:
     key: ${JP_RATELIMIT_KEY}
+  crypto:
+    data-key: ${JP_DATA_KEY}
   web:
     base-url: ${JP_WEB_BASE_URL}
   # 구글 로그인 (US-36). 기본값을 두지 않아 빠뜨리면 켜지지 않는다

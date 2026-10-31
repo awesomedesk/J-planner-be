@@ -1,7 +1,9 @@
 package com.awesomedesk.j_planner.api.v1.memo;
 
 import com.awesomedesk.j_planner.common.domain.BaseEntity;
+import com.awesomedesk.j_planner.common.crypto.EncryptedTextConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -31,9 +33,13 @@ public class Memo extends BaseEntity {
     @Column(name = "user_id", nullable = false, updatable = false)
     private Long userId;
 
+    /** 제목·내용은 앱에서 암호화해 저장 (US-41) */
+    @Convert(converter = EncryptedTextConverter.class)
+    @Column(columnDefinition = "VARBINARY(1100)")
     private String title;
 
-    @Column(columnDefinition = "TEXT")
+    @Convert(converter = EncryptedTextConverter.class)
+    @Column(columnDefinition = "MEDIUMBLOB")
     private String content;
 
     Memo(Long userId, MemoRules.Normalized v) {

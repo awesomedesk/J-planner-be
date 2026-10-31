@@ -1,7 +1,9 @@
 package com.awesomedesk.j_planner.api.v1.diary;
 
 import com.awesomedesk.j_planner.common.domain.BaseEntity;
+import com.awesomedesk.j_planner.common.crypto.EncryptedTextConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -35,7 +37,9 @@ public class Diary extends BaseEntity {
     @Column(name = "diary_date", nullable = false, updatable = false)
     private LocalDate date;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    /** 앱에서 암호화해 저장 (US-41) */
+    @Convert(converter = EncryptedTextConverter.class)
+    @Column(nullable = false, columnDefinition = "MEDIUMBLOB")
     private String content;
 
     public Diary(Long userId, LocalDate date, String content) {

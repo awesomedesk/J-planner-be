@@ -57,6 +57,9 @@ app:
   # 요청 제한 Redis 키의 대상 해시 HMAC 비밀 키 (US-41, base64 32바이트 이상). 로컬은 비워 두면 켤 때마다 무작위 — tst·prd는 JP_RATELIMIT_KEY 필수
   ratelimit:
     key: ${JP_RATELIMIT_KEY:}
+  # 일기·메모 내용 암호화 키 (US-41, AES-256 = base64 32바이트). 키를 잃으면 되돌릴 수 없다 — tst·prd는 JP_DATA_KEY 필수, 로컬은 application-local.yml
+  crypto:
+    data-key: ${JP_DATA_KEY:}
   cors:
     allowed-origins: ${JP_CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
   # FE 화면 주소 — 메일 링크(가입 인증 /signup/verify?token=…)에 쓴다 (D-074: 운영 도메인은 설정값으로). tst·prd는 JP_WEB_BASE_URL

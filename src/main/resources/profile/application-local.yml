@@ -32,4 +32,7 @@ spring:
 app:
   auth:
     dev-accounts: ${JP_DEV_ACCOUNTS:}
+  # 로컬 개발용 일기·메모 암호화 키 (비밀 아님 — 로컬 데이터 전용, 운영 키와 다르게). .env의 JP_DATA_KEY가 있으면 그것
+  crypto:
+    data-key: ${JP_DATA_KEY:bG9jYWwtZGV2LW9ubHktZGF0YS1rZXktMzItYnl0ZXM=}
 ---
