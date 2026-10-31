@@ -28,16 +28,27 @@ final class Browser {
     final String ip;
     Cookie sid;
     String xsrf;
+    /** 프록시가 붙이는 X-Forwarded-For (US-41). null이면 안 붙임 */
+    String forwardedFor;
 
     Browser(MockMvc web, String ip) {
         this.web = web;
         this.ip = ip;
     }
 
+    /** 이 브라우저의 요청이 프록시를 거쳐 온 것처럼 — 연결 주소는 {@code ip}(프록시), X-Forwarded-For는 이 값 (US-41) */
+    Browser via(String xForwardedFor) {
+        this.forwardedFor = xForwardedFor;
+        return this;
+    }
+
     /** 앱을 열 때처럼 CSRF 쿠키를 받는다 */
     Browser withCsrf() throws Exception {
         MockHttpServletResponse response = web.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(CSRF).with(r -> {
             r.setRemoteAddr(ip);
+            if (forwardedFor != null) {
+                r.addHeader("X-Forwarded-For", forwardedFor);
+            }
             return r;
         })).andExpect(status().isNoContent()).andReturn().getResponse();
         this.xsrf = response.getCookie(XSRF_COOKIE).getValue();
@@ -74,6 +85,9 @@ final class Browser {
             request.cookie(cookies.toArray(Cookie[]::new));
         }
         request.header(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Macintosh) Chrome/141.0");
+        if (forwardedFor != null) {
+            request.header("X-Forwarded-For", forwardedFor);
+        }
         ResultActions result = web.perform(request.with(r -> {
             r.setRemoteAddr(ip);
             return r;
