@@ -97,8 +97,9 @@ public class DormantAccounts {
                 log.error("휴면 안내 메일 실패 — 다음 작업 때 다시 보냄: {}", EmailMasker.mask(email), e);
                 continue;
             }
-            // 그 사이 로그인했으면(기준이 바뀜) 남기지 않는다
-            sent += jdbc.update("UPDATE users SET dormant_notice_sent_at = ? WHERE user_id = ? AND status = 'ACTIVE' AND dormant_notice_sent_at IS NULL", now, userId);
+            // 보내는 사이 로그인했으면(기준 시각이 바뀜) 남기지 않는다 — 1년을 새로 센다 (PO #7 2차 1번)
+            sent += jdbc.update("UPDATE users SET dormant_notice_sent_at = ? WHERE user_id = ? AND status = 'ACTIVE' AND dormant_notice_sent_at IS NULL AND "
+                + BASE + " = ?", now, userId, member.get("base"));
         }
         return sent;
     }
@@ -123,12 +124,13 @@ public class DormantAccounts {
             jdbc.update("INSERT INTO dormant_profiles (user_id, email, name, moved_at) SELECT user_id, email, name, ? FROM users WHERE user_id = ?", now, userId);
             jdbc.update("UPDATE users SET email = NULL, name = NULL, status = 'DORMANT', dormant_at = ?, updated_at = ? WHERE user_id = ?", now, now, userId);
             jdbc.update("UPDATE auth_tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL", now, userId);
+            // 행을 잡고 있는 동안 기기 로그아웃 — 끝난 뒤에 하면 그 사이 복원 로그인한 새 세션까지 끊는다 (PO #7 2차 3번)
+            deviceSessions.endAll(userId);
             return true;
         });
         if (!Boolean.TRUE.equals(moved)) {
             return false;
         }
-        deviceSessions.endAll(userId);
         audit.system(userId, AuditEvent.DORMANT, Map.of());
         return true;
     }
@@ -150,13 +152,13 @@ public class DormantAccounts {
                 return false;
             }
             deletion.deleteRows(userId); // 같은 트랜잭션에 들어간다 (TransactionTemplate 기본 REQUIRED)
+            deviceSessions.endAll(userId);
             return true;
         });
         if (!Boolean.TRUE.equals(deleted)) {
             return false;
         }
         audit.system(userId, AuditEvent.ACCOUNT_DELETED, DORMANT_EXPIRED);
-        deviceSessions.endAll(userId);
         return true;
     }
 
@@ -164,12 +166,14 @@ public class DormantAccounts {
      * 로그인 성공(비밀번호·연결된 구글 = 재인증)을 기록한다 — 세션을 만들기 <b>전에</b> 부른다. 정지 확인은 부르는 쪽이 먼저 한다 (정지 중이면 복원하지 않음).
      * 회원 행을 잠그고: 휴면이면 이메일·이름을 돌려놓고, 마지막 로그인 시각을 남기고 휴면 안내 기록을 지운다 (휴면 전환과 겹쳐도 한쪽이 기다림).
      *
-     * @return 이번에 휴면에서 복원했으면 true
+     * 비밀번호 확인과 이 기록 사이에 회원이 지워졌으면(휴면 4년 삭제) 아무것도 하지 않고 {@code exists=false} — 부르는 쪽은 세션을 만들지 말고 로그인 실패로 (PO #7 2차 2번).
      */
-    public boolean recordLogin(long userId, HttpServletRequest http) {
+    public LoginRecord recordLogin(long userId, HttpServletRequest http) {
         LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-        MemberEmails.Contact restored = transaction.execute(status -> {
-            jdbc.queryForList("SELECT user_id FROM users WHERE user_id = ? FOR UPDATE", Long.class, userId);
+        LoginRecord record = transaction.execute(status -> {
+            if (jdbc.queryForList("SELECT user_id FROM users WHERE user_id = ? FOR UPDATE", Long.class, userId).isEmpty()) {
+                return LoginRecord.GONE;
+            }
             MemberEmails.Contact profile = jdbc.query("SELECT email, name FROM dormant_profiles WHERE user_id = ?",
                 rs -> rs.next() ? new MemberEmails.Contact(rs.getString("email"), rs.getString("name")) : null, userId);
             if (profile != null) {
@@ -178,17 +182,31 @@ public class DormantAccounts {
                     profile.email(), profile.name(), now, userId);
             }
             jdbc.update("UPDATE users SET last_login_at = ?, dormant_notice_sent_at = NULL WHERE user_id = ?", now, userId);
-            return profile;
+            return new LoginRecord(true, profile);
         });
-        if (restored == null) {
-            return false;
+        if (record.restoredProfile() != null) {
+            audit.user(userId, AuditEvent.DORMANT_RESTORED, http, Map.of());
+            try {
+                mailer.sendDormantRestored(record.restoredProfile().email(), record.restoredProfile().name());
+            } catch (RuntimeException e) {
+                log.error("휴면 복원 알림 메일 실패: {}", EmailMasker.mask(record.restoredProfile().email()), e);
+            }
         }
-        audit.user(userId, AuditEvent.DORMANT_RESTORED, http, Map.of());
-        try {
-            mailer.sendDormantRestored(restored.email(), restored.name());
-        } catch (RuntimeException e) {
-            log.error("휴면 복원 알림 메일 실패: {}", EmailMasker.mask(restored.email()), e);
+        return record;
+    }
+
+    /**
+     * 로그인 기록 결과.
+     *
+     * @param exists          회원이 아직 있음 (false면 세션을 만들지 않는다)
+     * @param restoredProfile 이번에 휴면에서 돌려놓은 이메일·이름 (복원 안 했으면 null)
+     */
+    public record LoginRecord(boolean exists, MemberEmails.Contact restoredProfile) {
+
+        static final LoginRecord GONE = new LoginRecord(false, null);
+
+        public boolean restored() {
+            return restoredProfile != null;
         }
-        return true;
     }
 }

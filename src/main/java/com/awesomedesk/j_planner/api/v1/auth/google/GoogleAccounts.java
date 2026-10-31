@@ -128,12 +128,14 @@ public class GoogleAccounts {
     /**
      * 로그인 기록 — 세션을 만들기 전에: 휴면이면 복원(US-38, 정지는 login에서 걸렀다) + 마지막 로그인 시각·휴면 안내 기록 지움 + 감사 기록.
      *
-     * @return 이번에 휴면에서 복원했으면 true
+     * @return 결과 — {@code exists=false}(그 사이 회원이 지워짐)면 세션을 만들지 않는다
      */
-    boolean recordLogin(long userId, HttpServletRequest http) {
-        boolean restored = dormantAccounts.recordLogin(userId, http);
-        audit.user(userId, AuditEvent.LOGIN, http, GOOGLE_METHOD);
-        return restored;
+    DormantAccounts.LoginRecord recordLogin(long userId, HttpServletRequest http) {
+        DormantAccounts.LoginRecord record = dormantAccounts.recordLogin(userId, http);
+        if (record.exists()) {
+            audit.user(userId, AuditEvent.LOGIN, http, GOOGLE_METHOD);
+        }
+        return record;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.auth.google;
 
+import com.awesomedesk.j_planner.api.v1.user.DormantAccounts;
 import com.awesomedesk.j_planner.common.auth.DeviceSessions;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -82,9 +83,12 @@ class GoogleLoginHandler implements AuthenticationSuccessHandler, Authentication
         if (result.userId() == null) {
             return failure(started, result.error());
         }
-        boolean restored = accounts.recordLogin(result.userId(), request); // 세션보다 먼저 (휴면 전환과 겹쳐도 안전, US-38)
+        DormantAccounts.LoginRecord record = accounts.recordLogin(result.userId(), request); // 세션보다 먼저 (휴면 전환·삭제와 겹쳐도 안전, US-38)
+        if (!record.exists()) {
+            return failure(started, GoogleFlow.GOOGLE_FAILED);
+        }
         deviceSessions.start(result.userId(), request, response);
-        return redirects.loginSuccess(popup(started), started.getAttribute(GoogleFlow.NEXT), restored);
+        return redirects.loginSuccess(popup(started), started.getAttribute(GoogleFlow.NEXT), record.restored());
     }
 
     private String connect(OAuth2AuthorizationRequest started, GoogleProfile google, HttpServletRequest request) {

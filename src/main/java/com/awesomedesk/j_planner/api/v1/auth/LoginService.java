@@ -77,7 +77,12 @@ public class LoginService {
         }
 
         rateLimiter.recordSuccess(email);
-        boolean restored = dormantAccounts.recordLogin(member.id(), http); // 휴면이면 복원 + 마지막 로그인 (세션보다 먼저)
+        DormantAccounts.LoginRecord record = dormantAccounts.recordLogin(member.id(), http); // 휴면이면 복원 + 마지막 로그인 (세션보다 먼저)
+        if (!record.exists()) { // 그 사이 휴면 4년 삭제로 지워짐 → 없는 계정과 같게
+            audit.user(null, AuditEvent.LOGIN_FAILED, http, PASSWORD);
+            throw new ApiException(ErrorCode.UNAUTHENTICATED, ErrorMessages.LOGIN_FAILED);
+        }
+        boolean restored = record.restored();
         deviceSessions.start(member.id(), http, response);
         audit.user(userId, AuditEvent.LOGIN, http, PASSWORD);
         return LoginResponse.of(meService.get(member.id()), restored);
