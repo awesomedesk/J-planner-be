@@ -38,6 +38,8 @@ public enum ErrorCode {
     IDENTITY_ALREADY_CONNECTED(HttpStatus.CONFLICT, "이미 구글이 연결돼 있어요. 해제한 뒤 다시 연결해 주세요."),
     /** 요청 횟수 제한 (08 13-7). Retry-After 헤더(초)와 함께 */
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도하세요."),
+    /** 요청 본문이 1MB를 넘음 — 본문을 읽지 않는다 (US-41) */
+    CONTENT_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "요청이 너무 커요. 내용을 줄여 주세요."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 대상을 찾을 수 없습니다."),
     CATEGORY_NAME_DUPLICATED(HttpStatus.CONFLICT, "같은 이름의 카테고리가 이미 있습니다."),
     DEFAULT_CATEGORY_LOCKED(HttpStatus.CONFLICT, "'미지정' 카테고리는 이름·색을 바꾸거나 삭제·이동할 수 없습니다."),

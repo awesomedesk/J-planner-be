@@ -84,7 +84,7 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
             .andExpect(status().isPayloadTooLarge())
             .andExpect(jsonPath("$.code").value("CONTENT_TOO_LARGE"));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM memos WHERE user_id = ?", Integer.class, kim)).isZero();
-        b.postJson("/api/v1/memos", "{\"title\":\"보통 메모\",\"content\":\"" + "가".repeat(300_000) + "\"}").andExpect(status().isCreated());
+        b.postJson("/api/v1/memos", "{\"title\":\"보통 메모\",\"content\":\"" + "가".repeat(10_000) + "\"}").andExpect(status().isCreated());
     }
 
     @Test

@@ -5,6 +5,10 @@ import com.awesomedesk.j_planner.common.error.ProblemWriter;
 import java.time.Duration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -34,6 +38,8 @@ import org.springframework.security.web.csrf.CsrfException;
 public class SecurityConfig {
 
     public static final String CSRF_COOKIE = "__Host-XSRF-TOKEN";
+    /** API 응답(JSON)은 아무것도 불러오거나 끼워 넣을 일이 없다. 화면의 CSP는 FE(Next)가 정한다 */
+    static final String API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
     @Bean
     public SecurityFilterChain apiSecurity(HttpSecurity http, ProblemWriter problems,
@@ -60,7 +66,13 @@ public class SecurityConfig {
             .requestCache(AbstractHttpConfigurer::disable)
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
-            .logout(AbstractHttpConfigurer::disable);
+            .logout(AbstractHttpConfigurer::disable)
+            // 보안 헤더 (US-41): 기본(nosniff, X-Frame-Options DENY, no-store) + Referrer-Policy, API 응답에 CSP.
+            // HSTS는 HTTPS를 끝내는 앞단 프록시가 붙인다 (여기는 프록시 뒤 HTTP라 Spring이 붙이지 않음)
+            .headers(headers -> headers
+                .referrerPolicy(referrer -> referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(PathPatternRequestMatcher.withDefaults().matcher("/api/**"),
+                    new StaticHeadersWriter("Content-Security-Policy", API_CSP))));
         return http.build();
     }
 
