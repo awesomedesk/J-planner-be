@@ -225,6 +225,17 @@ class US32UserDataAcceptanceTest extends AcceptanceTest {
         assertThat(db.queryForObject("SELECT category_id FROM todos", Long.class)).isEqualTo(category);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM sidebar_items", Integer.class)).isEqualTo(4);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isEqualTo(1);
+        // US-41: 암호화 전 원문에는 V10이 '원문' 표시(첫 바이트 0)를 붙인다 — 켤 때 앱(NotesEncryptor)이 암호화
+        assertThat(db.queryForObject("SELECT content FROM diaries", byte[].class)).isEqualTo(marked("일기"));
+        assertThat(db.queryForObject("SELECT title FROM memos", byte[].class)).isEqualTo(marked("장보기"));
+        assertThat(db.queryForObject("SELECT content FROM memos", byte[].class)).isEqualTo(marked("우유"));
+    }
+
+    private static byte[] marked(String text) {
+        byte[] utf8 = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] marked = new byte[utf8.length + 1];
+        System.arraycopy(utf8, 0, marked, 1, utf8.length);
+        return marked;
     }
 
     // ------------------------------------------------------------------ 준비

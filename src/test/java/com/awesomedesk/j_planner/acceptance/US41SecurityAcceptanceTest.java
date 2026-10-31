@@ -202,10 +202,10 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
     }
 
     @Test
-    @DisplayName("AC4: 암호화 전에 저장된 원문(기존 admin 데이터·로컬 예시 데이터)은 서버를 켤 때 한 번 읽어 암호화해 다시 저장한다 — 이미 암호문인 행은 건드리지 않음")
+    @DisplayName("AC4: 암호화 전에 저장된 원문(V10이 표시를 붙인 기존 admin·로컬 예시 데이터)은 서버를 켤 때 한 번 읽어 암호화해 다시 저장한다 — 이미 암호문인 행은 건드리지 않음")
     void existingPlaintextIsEncrypted() throws Exception {
-        jdbc.update("INSERT INTO diaries (user_id, diary_date, content) VALUES (?, '2026-09-01', ?)", kim, "예전 일기".getBytes(StandardCharsets.UTF_8));
-        jdbc.update("INSERT INTO memos (user_id, title, content) VALUES (?, ?, NULL)", kim, "예전 메모".getBytes(StandardCharsets.UTF_8));
+        jdbc.update("INSERT INTO diaries (user_id, diary_date, content) VALUES (?, '2026-09-01', ?)", kim, legacy("예전 일기"));
+        jdbc.update("INSERT INTO memos (user_id, title, content) VALUES (?, ?, NULL)", kim, legacy("예전 메모"));
         Browser b = loggedIn(KIM, PW, "198.51.100.61");
         b.get("/api/v1/diaries/2026-09-01").andExpect(status().isOk()).andExpect(jsonPath("$.content").value("예전 일기"));
 
@@ -216,6 +216,25 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
         assertThat(jdbc.queryForObject("SELECT content FROM memos WHERE user_id = ?", byte[].class, kim)).isNull();
         b.get("/api/v1/diaries/2026-09-01").andExpect(jsonPath("$.content").value("예전 일기"));
         b.get("/api/v1/memos").andExpect(jsonPath("$[0].title").value("예전 메모"));
+    }
+
+    @Test
+    @DisplayName("AC4: 알 수 없는 형식(손상·다른 키 버전·잘린 값)은 켤 때 암호화 작업이 건드리지 않고 그대로 둔다 — 원문으로 다시 암호화해 덮어쓰지 않음 (PO #317 1번)")
+    void corruptValuesArePreserved() {
+        byte[] corrupt = {2, 9, 9, 9};
+        jdbc.update("INSERT INTO diaries (user_id, diary_date, content) VALUES (?, '2026-09-02', ?)", kim, corrupt);
+        jdbc.update("INSERT INTO memos (user_id, title, content) VALUES (?, ?, ?)", kim, new byte[] {1, 2, 3}, "표시 없음".getBytes(StandardCharsets.UTF_8));
+        assertThat(encryptor.encryptPlaintext()).isZero();
+        assertThat(jdbc.queryForObject("SELECT content FROM diaries WHERE user_id = ?", byte[].class, kim)).isEqualTo(corrupt);
+        assertThat(jdbc.queryForObject("SELECT title FROM memos WHERE user_id = ?", byte[].class, kim)).isEqualTo(new byte[] {1, 2, 3});
+    }
+
+    @Test
+    @DisplayName("AC2: 본문 길이 경계 — 정확히 1MiB(1,048,576바이트)는 받고, 1바이트 넘으면 413 (Content-Length)")
+    void requestSizeBoundary() throws Exception {
+        Browser b = loggedIn(KIM, PW, "198.51.100.53");
+        b.postJson("/api/v1/memos", jsonOfSize(1_048_576)).andExpect(status().isCreated());
+        b.postJson("/api/v1/memos", jsonOfSize(1_048_577)).andExpect(status().isPayloadTooLarge());
     }
 
     // ------------------------------------------------------------------ 보안 지표 (08 13-8)
@@ -319,6 +338,21 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
     private double count(String name, String... tags) {
         Counter counter = meters.find(name).tags(tags).counter();
         return counter == null ? 0 : counter.count();
+    }
+
+    /** 정확히 그 바이트 수의 메모 JSON (ASCII) */
+    private static String jsonOfSize(int bytes) {
+        String head = "{\"title\":\"t\",\"content\":\"";
+        String tail = "\"}";
+        return head + "a".repeat(bytes - head.length() - tail.length()) + tail;
+    }
+
+    /** V10이 붙이는 '암호화 전 원문' 표시(첫 바이트 0) + UTF-8 */
+    private static byte[] legacy(String text) {
+        byte[] utf8 = text.getBytes(StandardCharsets.UTF_8);
+        byte[] marked = new byte[utf8.length + 1];
+        System.arraycopy(utf8, 0, marked, 1, utf8.length);
+        return marked;
     }
 
     private String loginIp() {
