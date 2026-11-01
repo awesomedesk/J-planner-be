@@ -37,10 +37,15 @@ public class Diary extends BaseEntity {
     @Column(name = "diary_date", nullable = false, updatable = false)
     private LocalDate date;
 
-    /** 앱에서 암호화해 저장 (US-41) */
+    /** 앱에서 암호화해 암호문 칸에 저장 (US-41) */
     @Convert(converter = EncryptedTextConverter.class)
-    @Column(nullable = false, columnDefinition = "MEDIUMBLOB")
+    @Column(name = "content_enc", columnDefinition = "MEDIUMBLOB")
     private String content;
+
+    /** 암호화 전 원문 칸 — 켤 때 NotesEncryptor가 옮기고, 저장할 때도 비운다 (07 11-8) */
+    @Getter(AccessLevel.NONE)
+    @Column(name = "content", columnDefinition = "TEXT")
+    private String plainContent;
 
     public Diary(Long userId, LocalDate date, String content) {
         this.userId = userId;
@@ -48,7 +53,13 @@ public class Diary extends BaseEntity {
         this.content = content;
     }
 
+    /** 암호문이 있으면 그것, 아직 옮기지 않은 원문이면 원문 */
+    public String getContent() {
+        return content != null ? content : plainContent;
+    }
+
     public void changeContent(String content) {
         this.content = content;
+        this.plainContent = null;
     }
 }
