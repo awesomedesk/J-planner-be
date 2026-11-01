@@ -1,12 +1,14 @@
 package com.awesomedesk.j_planner.acceptance;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.awesomedesk.j_planner.common.crypto.DataCipher;
 import com.awesomedesk.j_planner.common.crypto.NotesEncryptor;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -35,7 +37,7 @@ import org.springframework.http.MediaType;
  * <p>
  * AC1: 보안 헤더 (HTTPS·HSTS는 앞단 프록시가 붙인다 — 배포 때 확인).
  * AC2: 요청 크기 1MB, 일반 API 회원별 분당 300번(api-user). 요청 제한 — 로그인 IP는 첫 시도부터 1분 창, Redis 키의 대상(IP·이메일·회원)은 비밀 키({@code app.ratelimit.key}) HMAC-SHA256.
- * AC4: 일기 내용·메모 제목·내용은 앱에서 AES-256-GCM으로 암호화해 저장 (키 {@code app.crypto.data-key}, 기존 원문은 켤 때 다시 저장).
+ * AC4: 일기 내용·메모 제목·내용은 앱에서 AES-256-GCM으로 암호화해 암호문 칸(*_enc)에 저장 (키 {@code app.crypto.data-key}). 기존 원문은 원문 칸에 있다가 켤 때 옮긴다.
  * AC3: 프록시(Caddy/nginx) 뒤에서도 진짜 접속 IP로 요청 제한·감사 기록·기기 목록을 남긴다 — 믿는 프록시 주소(설정 {@code app.network.trusted-proxies},
  *      테스트는 10.0.0.0/8)에서 온 X-Forwarded-For만, 오른쪽부터 믿는 프록시를 건너뛴 첫 주소.
  * <p>
@@ -53,6 +55,9 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
 
     @Autowired
     private NotesEncryptor encryptor;
+
+    @Autowired
+    private DataCipher cipher;
 
     @Autowired
     private PrometheusMeterRegistry prometheus;
@@ -188,11 +193,13 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
         b.postJson("/api/v1/memos", "{\"title\":\"비밀 제목\",\"content\":\"같은 메모\"}").andExpect(status().isCreated());
         b.postJson("/api/v1/memos", "{\"title\":\"비밀 제목\",\"content\":\"같은 메모\"}").andExpect(status().isCreated());
 
-        byte[] diary = jdbc.queryForObject("SELECT content FROM diaries WHERE user_id = ?", byte[].class, kim);
+        assertThat(jdbc.queryForObject("SELECT content FROM diaries WHERE user_id = ?", String.class, kim)).isNull(); // 원문 칸은 비어 있다
+        byte[] diary = jdbc.queryForObject("SELECT content_enc FROM diaries WHERE user_id = ?", byte[].class, kim);
         assertThat(diary[0]).isEqualTo((byte) 1);
         assertThat(new String(diary, StandardCharsets.UTF_8)).doesNotContain("비밀");
-        List<byte[]> titles = jdbc.queryForList("SELECT title FROM memos WHERE user_id = ? ORDER BY memo_id", byte[].class, kim);
-        List<byte[]> contents = jdbc.queryForList("SELECT content FROM memos WHERE user_id = ? ORDER BY memo_id", byte[].class, kim);
+        List<byte[]> titles = jdbc.queryForList("SELECT title_enc FROM memos WHERE user_id = ? ORDER BY memo_id", byte[].class, kim);
+        List<byte[]> contents = jdbc.queryForList("SELECT content_enc FROM memos WHERE user_id = ? ORDER BY memo_id", byte[].class, kim);
+        assertThat(jdbc.queryForList("SELECT CONCAT(IFNULL(title, ''), IFNULL(content, '')) FROM memos WHERE user_id = ?", String.class, kim)).containsOnly("");
         assertThat(titles.get(0)).isNotEqualTo(titles.get(1));
         assertThat(contents.get(0)).isNotEqualTo(contents.get(1));
         assertThat(new String(contents.get(0), StandardCharsets.UTF_8)).doesNotContain("메모");
@@ -202,31 +209,36 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
     }
 
     @Test
-    @DisplayName("AC4: 암호화 전에 저장된 원문(V10이 표시를 붙인 기존 admin·로컬 예시 데이터)은 서버를 켤 때 한 번 읽어 암호화해 다시 저장한다 — 이미 암호문인 행은 건드리지 않음")
+    @DisplayName("AC4: 암호화 전 원문(원문 칸 content·title, 기존 admin·로컬 예시 데이터)은 그대로 읽히고, 서버를 켤 때 암호문 칸으로 옮겨 원문 칸을 비운다 — 몇 번 켜도 같음")
     void existingPlaintextIsEncrypted() throws Exception {
-        jdbc.update("INSERT INTO diaries (user_id, diary_date, content) VALUES (?, '2026-09-01', ?)", kim, legacy("예전 일기"));
-        jdbc.update("INSERT INTO memos (user_id, title, content) VALUES (?, ?, NULL)", kim, legacy("예전 메모"));
+        jdbc.update("INSERT INTO diaries (user_id, diary_date, content) VALUES (?, '2026-09-01', '예전 일기')", kim);
+        jdbc.update("INSERT INTO memos (user_id, title, content) VALUES (?, '예전 메모', NULL)", kim);
         Browser b = loggedIn(KIM, PW, "198.51.100.61");
         b.get("/api/v1/diaries/2026-09-01").andExpect(status().isOk()).andExpect(jsonPath("$.content").value("예전 일기"));
 
         assertThat(encryptor.encryptPlaintext()).isEqualTo(2);
         assertThat(encryptor.encryptPlaintext()).isZero();
-        assertThat(jdbc.queryForObject("SELECT content FROM diaries WHERE user_id = ?", byte[].class, kim)[0]).isEqualTo((byte) 1);
-        assertThat(jdbc.queryForObject("SELECT title FROM memos WHERE user_id = ?", byte[].class, kim)[0]).isEqualTo((byte) 1);
-        assertThat(jdbc.queryForObject("SELECT content FROM memos WHERE user_id = ?", byte[].class, kim)).isNull();
+        assertThat(jdbc.queryForObject("SELECT content FROM diaries WHERE user_id = ?", String.class, kim)).isNull();
+        assertThat(jdbc.queryForObject("SELECT content_enc FROM diaries WHERE user_id = ?", byte[].class, kim)[0]).isEqualTo((byte) 1);
+        assertThat(jdbc.queryForObject("SELECT title FROM memos WHERE user_id = ?", String.class, kim)).isNull();
+        assertThat(jdbc.queryForObject("SELECT title_enc FROM memos WHERE user_id = ?", byte[].class, kim)[0]).isEqualTo((byte) 1);
+        assertThat(jdbc.queryForObject("SELECT content_enc FROM memos WHERE user_id = ?", byte[].class, kim)).isNull();
         b.get("/api/v1/diaries/2026-09-01").andExpect(jsonPath("$.content").value("예전 일기"));
         b.get("/api/v1/memos").andExpect(jsonPath("$[0].title").value("예전 메모"));
     }
 
     @Test
-    @DisplayName("AC4: 알 수 없는 형식(손상·다른 키 버전·잘린 값)은 켤 때 암호화 작업이 건드리지 않고 그대로 둔다 — 원문으로 다시 암호화해 덮어쓰지 않음 (PO #317 1번)")
+    @DisplayName("AC4: 암호문 칸의 손상값(버전 0·2, 잘린 값)은 켤 때 작업이 건드리지 않고 그대로 두며, 원문으로 읽지도 않는다 (PO #317)")
     void corruptValuesArePreserved() {
-        byte[] corrupt = {2, 9, 9, 9};
-        jdbc.update("INSERT INTO diaries (user_id, diary_date, content) VALUES (?, '2026-09-02', ?)", kim, corrupt);
-        jdbc.update("INSERT INTO memos (user_id, title, content) VALUES (?, ?, ?)", kim, new byte[] {1, 2, 3}, "표시 없음".getBytes(StandardCharsets.UTF_8));
+        byte[] versionZero = {0, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9};
+        byte[] versionTwo = {2, 9, 9, 9};
+        jdbc.update("INSERT INTO diaries (user_id, diary_date, content_enc) VALUES (?, '2026-09-02', ?)", kim, versionZero);
+        jdbc.update("INSERT INTO memos (user_id, title_enc, content_enc) VALUES (?, ?, ?)", kim, new byte[] {1, 2, 3}, versionTwo);
         assertThat(encryptor.encryptPlaintext()).isZero();
-        assertThat(jdbc.queryForObject("SELECT content FROM diaries WHERE user_id = ?", byte[].class, kim)).isEqualTo(corrupt);
-        assertThat(jdbc.queryForObject("SELECT title FROM memos WHERE user_id = ?", byte[].class, kim)).isEqualTo(new byte[] {1, 2, 3});
+        assertThat(jdbc.queryForObject("SELECT content_enc FROM diaries WHERE user_id = ?", byte[].class, kim)).isEqualTo(versionZero);
+        assertThat(jdbc.queryForObject("SELECT title_enc FROM memos WHERE user_id = ?", byte[].class, kim)).isEqualTo(new byte[] {1, 2, 3});
+        assertThat(jdbc.queryForObject("SELECT content_enc FROM memos WHERE user_id = ?", byte[].class, kim)).isEqualTo(versionTwo);
+        assertThatThrownBy(() -> cipher.decrypt(versionZero)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -345,14 +357,6 @@ class US41SecurityAcceptanceTest extends BrowserAcceptanceTest {
         String head = "{\"title\":\"t\",\"content\":\"";
         String tail = "\"}";
         return head + "a".repeat(bytes - head.length() - tail.length()) + tail;
-    }
-
-    /** V10이 붙이는 '암호화 전 원문' 표시(첫 바이트 0) + UTF-8 */
-    private static byte[] legacy(String text) {
-        byte[] utf8 = text.getBytes(StandardCharsets.UTF_8);
-        byte[] marked = new byte[utf8.length + 1];
-        System.arraycopy(utf8, 0, marked, 1, utf8.length);
-        return marked;
     }
 
     private String loginIp() {

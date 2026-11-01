@@ -43,39 +43,17 @@ class DataCipherTest {
     }
 
     @Test
-    @DisplayName("암호화 전 원문은 마이그레이션(V10)이 붙인 표시(첫 바이트 0)가 있을 때만 원문으로 읽는다 — 시작할 때 암호화 작업이 바꾼다 (PO #317 1번)")
-    void readsMarkedLegacyPlaintext() {
-        byte[] legacy = legacy("예전 일기");
-        assertThat(cipher.decrypt(legacy)).isEqualTo("예전 일기");
-        assertThat(DataCipher.isLegacy(legacy)).isTrue();
-        assertThat(DataCipher.isLegacy(cipher.encrypt("x"))).isFalse();
-    }
-
-    @Test
-    @DisplayName("표시 없는 원문·알 수 없는 키 버전·잘린 값·빈 값은 원문으로 보지 않고 예외 — 손상값을 평문처럼 읽지 않는다 (PO #317 1번)")
+    @DisplayName("암호문만 읽는다 — 키 버전을 0·2로 바꾼 값, 잘린 값, 빈 값, 원문 바이트는 모두 예외 (원문은 다른 칸에 따로 있다, PO #317)")
     void rejectsUnknownFormats() {
-        byte[] versionTwo = cipher.encrypt("내용");
-        versionTwo[0] = 2;
-        assertThatThrownBy(() -> cipher.decrypt(versionTwo)).isInstanceOf(IllegalStateException.class);
+        for (byte version : new byte[] {0, 2}) {
+            byte[] changed = cipher.encrypt("내용");
+            changed[0] = version;
+            assertThatThrownBy(() -> cipher.decrypt(changed)).as("버전 " + version).isInstanceOf(IllegalStateException.class);
+        }
         assertThatThrownBy(() -> cipher.decrypt(new byte[] {1, 2, 3})).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> cipher.decrypt(new byte[0])).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> cipher.decrypt("표시 없는 원문".getBytes(StandardCharsets.UTF_8))).isInstanceOf(IllegalStateException.class);
         byte[] cut = java.util.Arrays.copyOf(cipher.encrypt("잘린 값"), 20);
         assertThatThrownBy(() -> cipher.decrypt(cut)).isInstanceOf(IllegalStateException.class);
-    }
-
-    private static byte[] legacy(String text) {
-        byte[] utf8 = text.getBytes(StandardCharsets.UTF_8);
-        byte[] marked = new byte[utf8.length + 1];
-        System.arraycopy(utf8, 0, marked, 1, utf8.length);
-        return marked;
-    }
-
-    @Test
-    @DisplayName("키는 base64 32바이트(AES-256)여야 하고, 없으면 켜지지 않는다")
-    void keyRules() {
-        assertThatThrownBy(() -> new DataCipher("")).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> new DataCipher(Base64.getEncoder().encodeToString(new byte[16]))).isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> new DataCipher("%%% not base64")).isInstanceOf(IllegalStateException.class);
     }
 }

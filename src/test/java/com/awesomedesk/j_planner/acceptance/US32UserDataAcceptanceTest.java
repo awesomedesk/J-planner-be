@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.awesomedesk.j_planner.common.crypto.DataCipher;
+import com.awesomedesk.j_planner.common.crypto.NotesEncryptor;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -21,6 +23,7 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpMethod;
@@ -40,6 +43,9 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
  */
 @DisplayName("US-32 사용자별 데이터")
 class US32UserDataAcceptanceTest extends AcceptanceTest {
+
+    @Autowired
+    private DataCipher cipher;
 
     private static final String WEEK_FROM = "2026-09-20";
     private static final String WEEK_TO = "2026-09-26";
@@ -225,17 +231,14 @@ class US32UserDataAcceptanceTest extends AcceptanceTest {
         assertThat(db.queryForObject("SELECT category_id FROM todos", Long.class)).isEqualTo(category);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM sidebar_items", Integer.class)).isEqualTo(4);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isEqualTo(1);
-        // US-41: 암호화 전 원문에는 V10이 '원문' 표시(첫 바이트 0)를 붙인다 — 켤 때 앱(NotesEncryptor)이 암호화
-        assertThat(db.queryForObject("SELECT content FROM diaries", byte[].class)).isEqualTo(marked("일기"));
-        assertThat(db.queryForObject("SELECT title FROM memos", byte[].class)).isEqualTo(marked("장보기"));
-        assertThat(db.queryForObject("SELECT content FROM memos", byte[].class)).isEqualTo(marked("우유"));
-    }
-
-    private static byte[] marked(String text) {
-        byte[] utf8 = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        byte[] marked = new byte[utf8.length + 1];
-        System.arraycopy(utf8, 0, marked, 1, utf8.length);
-        return marked;
+        // US-41: 암호화 전 원문은 원문 칸에 그대로, 암호문 칸은 비어 있다 → 켤 때 작업(NotesEncryptor)이 옮긴다 (전체 경로, PO #317)
+        assertThat(db.queryForMap("SELECT content, content_enc FROM diaries")).containsEntry("content", "일기").containsEntry("content_enc", null);
+        assertThat(new NotesEncryptor(db, cipher).encryptPlaintext()).isEqualTo(2);
+        assertThat(db.queryForObject("SELECT content FROM diaries", String.class)).isNull();
+        assertThat(cipher.decrypt(db.queryForObject("SELECT content_enc FROM diaries", byte[].class))).isEqualTo("일기");
+        assertThat(db.queryForMap("SELECT title, content FROM memos")).containsEntry("title", null).containsEntry("content", null);
+        assertThat(cipher.decrypt(db.queryForObject("SELECT title_enc FROM memos", byte[].class))).isEqualTo("장보기");
+        assertThat(cipher.decrypt(db.queryForObject("SELECT content_enc FROM memos", byte[].class))).isEqualTo("우유");
     }
 
     // ------------------------------------------------------------------ 준비
