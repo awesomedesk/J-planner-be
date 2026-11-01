@@ -33,7 +33,8 @@ import org.springframework.security.web.context.NullSecurityContextRepository;
  *   <li>사용자 정보 주소는 부르지 않는다 — sub·email·email_verified·name은 ID 토큰에 있다</li>
  *   <li>구글 토큰(access token)은 저장하지 않는다 ({@link #noAuthorizedClients()}) — 로그인 확인에만 쓰고 구글 API는 부르지 않는다</li>
  * </ul>
- * scope는 openid email profile만 (구글 앱 심사 불필요, 11 3-6).
+ * scope는 openid email profile만 — 민감·제한 scope가 아니라 scope 검증(심사)은 대상이 아니다 (11 3-6). 단 운영(production) 앱은 scope와 상관없이
+ * 구글의 브랜드 확인(앱 이름·로고)과 공개 홈페이지(약관·개인정보처리방침 링크, 소유한 도메인)가 필요하다 — Google OAuth 2.0 Policies(2026-08-05 수정) 'Accurately represent your identity'·'Host a homepage for production apps', US-39.
  */
 @Slf4j
 @Configuration

@@ -65,9 +65,7 @@
       <appender-ref ref="STDOUT"/>
     </logger>
 
-    <logger name="org.hibernate.orm.jdbc.bind" level="TRACE" additivity="false">
-      <appender-ref ref="STDOUT"/>
-    </logger>
+    <!-- SQL 바인딩 값(TRACE)은 남기지 않는다 — 이메일·이름·해시가 로그에 찍힌다 (US-41 SEC-15, 처리방침 #333) -->
 
     <root level="info">
       <appender-ref ref="STDOUT" />
