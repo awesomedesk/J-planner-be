@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 /**
  * 암호화 전 일기·메모 원문을 서버를 켤 때 암호문 칸으로 옮긴다 (US-41 AC4, D-066: 기존 admin 데이터, 로컬 예시 데이터, 07 11-8).
  * 원문은 원래 칸(content·title), 암호문은 새 칸(*_enc)에 있어서 <b>값의 모양으로 원문인지 추측하지 않는다</b> (PO #317).
- * 옮기는 조건: 원문 칸에 값이 있고 암호문 칸이 비어 있음 → 암호화해 암호문 칸에 쓰고 원문 칸을 비운다 (한 행 한 UPDATE, 그 사이 바뀌었으면 건너뜀).
+ * 옮기는 조건: 원문 칸에 값이 있고 그 암호문 칸이 비어 있음 → 암호화해 암호문 칸에 쓰고 원문 칸을 비운다 (칸마다 한 UPDATE, 그 사이 바뀌었으면 건너뜀).
  * 암호문 칸에 이미 값이 있으면(손상값 포함) 절대 건드리지 않는다. 몇 번 켜도 같다.
  */
 @Slf4j
@@ -43,19 +43,23 @@ public class NotesEncryptor implements ApplicationRunner {
             count += jdbc.update("UPDATE diaries SET content_enc = ?, content = NULL WHERE diary_id = ? AND content_enc IS NULL AND content = ?",
                 cipher.encrypt(plain), row.get("diary_id"), plain);
         }
+        // 메모는 제목·내용을 따로 옮긴다 (V11 뒤에는 제목은 암호문, 내용은 원문인 행도 있다)
         for (Map<String, Object> row : jdbc.queryForList("SELECT memo_id, title, content FROM memos"
-            + " WHERE (title IS NOT NULL AND title_enc IS NULL AND (content IS NULL OR content_enc IS NULL))"
-            + " OR (content IS NOT NULL AND content_enc IS NULL AND (title IS NULL OR title_enc IS NULL))")) {
+            + " WHERE (title IS NOT NULL AND title_enc IS NULL) OR (content IS NOT NULL AND content_enc IS NULL)")) {
+            int moved = 0;
             String title = (String) row.get("title");
+            if (title != null) {
+                moved += jdbc.update("UPDATE memos SET title_enc = ?, title = NULL WHERE memo_id = ? AND title_enc IS NULL AND title = ?",
+                    cipher.encrypt(title), row.get("memo_id"), title);
+            }
             String content = (String) row.get("content");
-            count += jdbc.update("UPDATE memos SET title_enc = ?, content_enc = ?, title = NULL, content = NULL"
-                    + " WHERE memo_id = ? AND title_enc IS NULL AND content_enc IS NULL AND title <=> ? AND content <=> ?",
-                seal(title), seal(content), row.get("memo_id"), title, content);
+            if (content != null) {
+                moved += jdbc.update("UPDATE memos SET content_enc = ?, content = NULL WHERE memo_id = ? AND content_enc IS NULL AND content = ?",
+                    cipher.encrypt(content), row.get("memo_id"), content);
+            }
+            count += moved > 0 ? 1 : 0;
         }
         return count;
     }
 
-    private byte[] seal(String plain) {
-        return plain == null ? null : cipher.encrypt(plain);
-    }
 }
