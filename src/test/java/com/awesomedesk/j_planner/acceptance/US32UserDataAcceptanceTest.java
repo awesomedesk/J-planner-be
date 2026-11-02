@@ -241,6 +241,55 @@ class US32UserDataAcceptanceTest extends AcceptanceTest {
         assertThat(cipher.decrypt(db.queryForObject("SELECT content_enc FROM memos", byte[].class))).isEqualTo("우유");
     }
 
+    @Test
+    @DisplayName("US-41: 처음 설계(옛 V8·V10)가 이미 적용된 DB(공유 로컬 jp, 2026-11-01)도 V11이 원문 칸·암호문 칸으로 옮긴다 — 암호문·원문 표시·손상값을 각각 제자리로, 손상값은 암호문 칸에 그대로 (PO #317)")
+    void v11MovesOldEncryptionLayout(@Value("${spring.datasource.url}") String url,
+                                     @Value("${spring.datasource.username}") String username,
+                                     @Value("${spring.datasource.password}") String password) {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource(url.replaceFirst("/jp_test\\?", "/jp_test_migration?"), username, password);
+        JdbcTemplate db = new JdbcTemplate(dataSource);
+        Flyway v1 = flyway(dataSource, "1");
+        v1.clean();
+        v1.migrate();
+        insertV1Data(db); // 일기 '일기', 메모 '장보기'/'우유'
+        flyway(dataSource, "10").migrate();
+        long admin = db.queryForObject("SELECT user_id FROM users", Long.class);
+
+        // 처음 설계의 앱(a80ba63)이 남긴 상태: content 칸에 암호문(키 버전 1) 또는 원문 표시(0x00) 또는 손상값
+        byte[] corrupt = {2, 9, 9};
+        db.update("INSERT INTO diaries (user_id, diary_date, content) VALUES (?, '2026-09-26', ?)", admin, cipher.encrypt("암호 일기"));
+        db.update("INSERT INTO diaries (user_id, diary_date, content) VALUES (?, '2026-09-27', ?)", admin, corrupt);
+        db.update("INSERT INTO memos (user_id, title, content) VALUES (?, ?, ?)", admin, cipher.encrypt("암호 제목"), marked("원문 내용"));
+
+        flyway(dataSource, "latest").migrate();
+
+        assertThat(db.queryForMap("SELECT content, content_enc FROM diaries WHERE diary_date = '2026-09-25'"))
+            .containsEntry("content", "일기").containsEntry("content_enc", null);
+        Map<String, Object> sealed = db.queryForMap("SELECT content, content_enc FROM diaries WHERE diary_date = '2026-09-26'");
+        assertThat(sealed.get("content")).isNull();
+        assertThat(cipher.decrypt((byte[]) sealed.get("content_enc"))).isEqualTo("암호 일기");
+        assertThat(db.queryForMap("SELECT content, content_enc FROM diaries WHERE diary_date = '2026-09-27'"))
+            .containsEntry("content", null).containsEntry("content_enc", corrupt);
+        Map<String, Object> memo = db.queryForMap("SELECT title, title_enc, content, content_enc FROM memos WHERE title_enc IS NOT NULL OR title IS NULL");
+        assertThat(memo).containsEntry("title", null).containsEntry("content", "원문 내용").containsEntry("content_enc", null);
+        assertThat(cipher.decrypt((byte[]) memo.get("title_enc"))).isEqualTo("암호 제목");
+        assertThat(db.queryForMap("SELECT title, content FROM memos WHERE title = '장보기'")).containsEntry("content", "우유");
+
+        // 켤 때 작업: 원문 칸만 옮기고 손상값은 그대로
+        assertThat(new NotesEncryptor(db, cipher).encryptPlaintext()).isEqualTo(3);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM diaries WHERE content IS NOT NULL", Integer.class)).isZero();
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM memos WHERE title IS NOT NULL OR content IS NOT NULL", Integer.class)).isZero();
+        assertThat(db.queryForObject("SELECT content_enc FROM diaries WHERE diary_date = '2026-09-27'", byte[].class)).isEqualTo(corrupt);
+    }
+
+    /** 처음 설계 V10의 원문 표시(첫 바이트 0) + UTF-8 */
+    private static byte[] marked(String text) {
+        byte[] utf8 = text.getBytes(StandardCharsets.UTF_8);
+        byte[] marked = new byte[utf8.length + 1];
+        System.arraycopy(utf8, 0, marked, 1, utf8.length);
+        return marked;
+    }
+
     // ------------------------------------------------------------------ 준비
 
     /** 로그인이 필요한 데이터 API 전부 (명세와 같은지 endpointListCoversSpec이 확인) */
