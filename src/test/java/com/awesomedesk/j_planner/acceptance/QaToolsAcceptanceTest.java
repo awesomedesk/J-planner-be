@@ -53,7 +53,7 @@ class QaToolsAcceptanceTest extends BrowserAcceptanceTest {
         assertThatThrownBy(() -> tools.run("admin@test.local", "expire-reauth")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> tools.run("qa-nobody@example.com", "make-dormant")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> tools.run(QA, "drop-everything")).isInstanceOf(IllegalArgumentException.class);
-        assertThat(status(other)).isEqualTo("ACTIVE");
+        assertThat(memberStatus(other)).isEqualTo("ACTIVE");
     }
 
     @Test
@@ -69,8 +69,8 @@ class QaToolsAcceptanceTest extends BrowserAcceptanceTest {
     @DisplayName("make-dormant: 그 QA 회원만 휴면 — 조건을 갖춘 다른 회원은 그대로. 다시 로그인하면 복원")
     void dormantOnlyQa() throws Exception {
         String summary = tools.run(QA, "make-dormant");
-        assertThat(status(qa)).isEqualTo("DORMANT");
-        assertThat(status(other)).isEqualTo("ACTIVE");
+        assertThat(memberStatus(qa)).isEqualTo("DORMANT");
+        assertThat(memberStatus(other)).isEqualTo("ACTIVE");
         assertThat(summary).contains("dormant=1").doesNotContain(QA);
 
         browser("203.0.113.50").withCsrf().login(QA, PW).andExpect(status().isOk()).andExpect(jsonPath("$.restored").value(true));
@@ -109,7 +109,7 @@ class QaToolsAcceptanceTest extends BrowserAcceptanceTest {
         return LocalDateTime.now(clock).withNano(0);
     }
 
-    private String status(long userId) {
+    private String memberStatus(long userId) {
         return jdbc.queryForObject("SELECT status FROM users WHERE user_id = ?", String.class, userId);
     }
 }

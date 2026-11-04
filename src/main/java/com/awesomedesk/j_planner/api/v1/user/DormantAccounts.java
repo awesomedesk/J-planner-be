@@ -81,8 +81,17 @@ public class DormantAccounts {
      * 휴면은 안내를 남긴 날부터 30일 뒤라, 실패한 안내로 휴면이 되지는 않는다.
      */
     private int sendNotices(LocalDateTime now) {
-        List<Map<String, Object>> due = jdbc.queryForList("SELECT user_id, email, name, " + BASE + " AS base FROM users"
-            + " WHERE status = 'ACTIVE' AND dormant_notice_sent_at IS NULL AND " + BASE + " <= ?", now.minusYears(1).plusDays(30));
+        return sendNotices(jdbc.queryForList("SELECT user_id, email, name, " + BASE + " AS base FROM users"
+            + " WHERE status = 'ACTIVE' AND dormant_notice_sent_at IS NULL AND " + BASE + " <= ?", now.minusYears(1).plusDays(30)), now);
+    }
+
+    /** 그 회원 한 명에게만 안내 (조건은 매일 작업과 같음) — 로컬 실행 검수용 {@link QaTools} */
+    int sendNoticeTo(long userId, LocalDateTime now) {
+        return sendNotices(jdbc.queryForList("SELECT user_id, email, name, " + BASE + " AS base FROM users"
+            + " WHERE user_id = ? AND status = 'ACTIVE' AND dormant_notice_sent_at IS NULL AND " + BASE + " <= ?", userId, now.minusYears(1).plusDays(30)), now);
+    }
+
+    private int sendNotices(List<Map<String, Object>> due, LocalDateTime now) {
         int sent = 0;
         for (Map<String, Object> member : due) {
             long userId = ((Number) member.get("user_id")).longValue();
