@@ -132,7 +132,7 @@ public class DormantAccounts {
             }
             jdbc.update("INSERT INTO dormant_profiles (user_id, email, name, moved_at) SELECT user_id, email, name, ? FROM users WHERE user_id = ?", now, userId);
             jdbc.update("UPDATE users SET email = NULL, name = NULL, status = 'DORMANT', dormant_at = ?, updated_at = ? WHERE user_id = ?", now, now, userId);
-            jdbc.update("UPDATE auth_tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL", now, userId);
+            jdbc.update("DELETE FROM auth_tokens WHERE user_id = ?", userId); // 남은 메일 링크 무효 = 삭제 (#353)
             // 행을 잡고 있는 동안 기기 로그아웃 — 끝난 뒤에 하면 그 사이 복원 로그인한 새 세션까지 끊는다 (PO #7 2차 3번)
             deviceSessions.endAll(userId);
             return true;

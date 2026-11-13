@@ -102,7 +102,7 @@ public class EmailChangeService {
         LocalDateTime now = now();
         String token = SignupTokens.newToken();
         transaction.executeWithoutResult(status -> {
-            jdbc.update("UPDATE auth_tokens SET used_at = ? WHERE user_id = ? AND purpose = ? AND used_at IS NULL", now, userId, PURPOSE);
+            jdbc.update("DELETE FROM auth_tokens WHERE user_id = ? AND purpose = ?", userId, PURPOSE); // 이전 링크는 남기지 않는다 (보관 유예 0일, #353)
             jdbc.update("INSERT INTO auth_tokens (user_id, purpose, token_hash, new_email, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                 userId, PURPOSE, SignupTokens.hash(token), email, now.plus(LINK_LIFETIME), now);
         });
@@ -148,7 +148,7 @@ public class EmailChangeService {
         }
         long userId = ((Number) found.getFirst().get("user_id")).longValue();
         String email = (String) found.getFirst().get("new_email");
-        jdbc.update("UPDATE auth_tokens SET used_at = ? WHERE user_id = ? AND purpose = ? AND used_at IS NULL", now, userId, PURPOSE);
+        jdbc.update("DELETE FROM auth_tokens WHERE user_id = ? AND purpose = ?", userId, PURPOSE); // 쓴 토큰은 남기지 않는다 (#353)
         if (memberEmails.taken(email)) {
             return null;
         }

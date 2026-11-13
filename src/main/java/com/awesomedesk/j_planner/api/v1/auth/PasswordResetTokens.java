@@ -17,10 +17,10 @@ class PasswordResetTokens {
     private final JdbcTemplate jdbc;
     private final PasswordCredentials passwordCredentials;
 
-    /** 새 토큰을 넣고 그 회원의 이전 재설정 토큰은 모두 무효(used_at)로 */
+    /** 새 토큰을 넣고 그 회원의 이전 재설정 토큰은 지운다 (보관 유예 0일, 대표님 #353) */
     @Transactional
     void issue(long userId, byte[] tokenHash, LocalDateTime now, LocalDateTime expiresAt) {
-        jdbc.update("UPDATE auth_tokens SET used_at = ? WHERE user_id = ? AND purpose = ? AND used_at IS NULL", now, userId, PURPOSE);
+        jdbc.update("DELETE FROM auth_tokens WHERE user_id = ? AND purpose = ?", userId, PURPOSE);
         jdbc.update("INSERT INTO auth_tokens (user_id, purpose, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
             userId, PURPOSE, tokenHash, expiresAt, now);
     }
@@ -47,7 +47,7 @@ class PasswordResetTokens {
             return null;
         }
         long userId = found.getFirst();
-        jdbc.update("UPDATE auth_tokens SET used_at = ? WHERE user_id = ? AND purpose = ? AND used_at IS NULL", now, userId, PURPOSE);
+        jdbc.update("DELETE FROM auth_tokens WHERE user_id = ? AND purpose = ?", userId, PURPOSE); // 쓴 토큰은 남기지 않는다 (#353)
         passwordCredentials.setEncoded(userId, passwordHash, now);
         return userId;
     }
