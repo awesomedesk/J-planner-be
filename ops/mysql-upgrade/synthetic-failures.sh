@@ -50,6 +50,25 @@ docker exec $S mysql --defaults-extra-file=/root/.jp-upgrade.cnf -e "UPDATE jp.t
 "$HERE/fingerprint.sh" $S "$RUN/data.txt" >/dev/null
 expect_fail "데이터 한 행 바뀜 → 비교 실패" compare_fp "$RUN/base.txt" "$RUN/data.txt"
 
+echo "== 2b. 비교 자체의 오류 (없는 입력·읽기 실패·구조 이상·diff 오류) — 모두 실패여야 함"
+expect_fail "없는 입력 두 개 → 비교 불가(2)" compare_fp "$RUN/no-such-1.txt" "$RUN/no-such-2.txt"
+expect_fail "한쪽만 없음 → 비교 불가(2)" compare_fp "$RUN/base.txt" "$RUN/no-such-3.txt"
+cp "$RUN/base.txt" "$RUN/unreadable.txt"; chmod 000 "$RUN/unreadable.txt"
+expect_fail "읽기 불가 파일 → 비교 불가(2)" compare_fp "$RUN/base.txt" "$RUN/unreadable.txt"; chmod 600 "$RUN/unreadable.txt"
+: > "$RUN/empty.txt"
+expect_fail "빈 파일 → 비교 불가(2)" compare_fp "$RUN/empty.txt" "$RUN/empty.txt"
+printf 'hello\n' > "$RUN/not-fp.txt"
+expect_fail "지문 구조가 아닌 파일 둘(같은 내용) → 비교 불가(2)" compare_fp "$RUN/not-fp.txt" "$RUN/not-fp.txt"
+mkdir -m 700 "$RUN/fakebin"; printf '#!/bin/sh\nexit 2\n' > "$RUN/fakebin/diff"; chmod 700 "$RUN/fakebin/diff"
+expect_fail "diff 종료 2 주입(같은 지문 두 개) → 비교 불가(2)" env PATH="$RUN/fakebin:$PATH" bash -c 'source "$0"; compare_fp "$1" "$2"' "$HERE/lib.sh" "$RUN/base.txt" "$RUN/same.txt"
+printf '#!/bin/sh\nexit 2\n' > "$RUN/fakebin/grep"; chmod 700 "$RUN/fakebin/grep"; rm -f "$RUN/fakebin/diff"
+expect_fail "grep 오류 주입 → 비교 불가(2)" env PATH="$RUN/fakebin:$PATH" bash -c 'source "$0"; compare_fp "$1" "$2"' "$HERE/lib.sh" "$RUN/base.txt" "$RUN/same.txt"
+expect_ok "같은 지문 두 개 → 같음(0)" compare_fp "$RUN/base.txt" "$RUN/same.txt"
+expect_fail "exact(콜드 복원 기준): 버전 줄만 달라도 실패" compare_fp "$RUN/base.txt" "$RUN/version-only.txt" exact
+expect_fail "모르는 비교 방식 → 비교 불가(2)" compare_fp "$RUN/base.txt" "$RUN/same.txt" loose
+rc=0; compare_fp "$RUN/base.txt" "$RUN/data.txt" >/dev/null 2>&1 || rc=$?
+if [ $rc -eq 1 ]; then echo "PASS  실제 차이 → 종료 1 (2와 구분)"; pass=$((pass+1)); else echo "FAIL  실제 차이 종료 $rc"; failn=$((failn+1)); fi
+
 echo "== 3. 지문 경고 (GROUP_CONCAT 상한을 작게 → 잘림)"
 expect_fail "group_concat_max_len=8 → 지문 실패" env FP_GC_MAX=8 "$HERE/fingerprint.sh" $S "$RUN/trunc.txt"
 expect_fail "group_concat_max_len=200 → 지문 실패" env FP_GC_MAX=200 "$HERE/fingerprint.sh" $S "$RUN/trunc2.txt"

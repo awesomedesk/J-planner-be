@@ -61,7 +61,7 @@ docker rm -f $NEW >/dev/null
 mv "$RUN/datadir" "$RUN/failed-datadir"; cp -a "$RUN/final-datadir" "$RUN/datadir"
 T=$(date -u +%Y-%m-%dT%H:%M:%SZ); docker start $OLD >/dev/null; wait_ready $OLD "$T"
 "$HERE/fingerprint.sh" $OLD "$RUN/restored.txt"
-diff <(grep -v '^#' "$RUN/before.txt") <(grep -v '^#' "$RUN/restored.txt") >/dev/null || fail "콜드 복원 지문(버전 줄 포함 완전히 같아야 함)"; echo COLD_RESTORE_SAME
+compare_fp "$RUN/before.txt" "$RUN/restored.txt" exact || fail "콜드 복원 지문(버전 줄 포함 완전히 같아야 함)"; echo COLD_RESTORE_SAME
 
 step "6. 콜드 백업이 깨졌다고 가정 — 빈 옛 버전 서버에 논리 백업 + 계정 파일 복원"
 mkdir -m 700 "$RUN/restore-datadir"
@@ -72,6 +72,6 @@ docker exec -i $RESTORE mysql --defaults-extra-file=/root/.jp-upgrade.cnf < "$RU
 docker exec -i $RESTORE mysql --defaults-extra-file=/root/.jp-upgrade.cnf < "$RUN/accounts.sql" >/dev/null 2>&1 || { echo "계정 복원 실패 — 멈춤"; exit 1; }
 "$HERE/fingerprint.sh" $RESTORE "$RUN/logical.txt"
 # 논리 복원은 root가 새로 생겨 mysql 계정 표 지문은 다를 수 있어 그 줄만 빼고 비교 (계정은 아래 SHOW GRANTS로 따로)
-diff <(grep -v -e '^#' -e '^server\.version' -e '^data\.mysql\.' -e '^warnings\.' "$RUN/before.txt") <(grep -v -e '^#' -e '^server\.version' -e '^data\.mysql\.' -e '^warnings\.' "$RUN/logical.txt") >/dev/null || fail "논리 복원 지문"; echo "LOGICAL_RESTORE_SAME (jp·jpadm 스키마·데이터·설정)"
+compare_fp "$RUN/before.txt" "$RUN/logical.txt" logical || fail "논리 복원 지문"; echo "LOGICAL_RESTORE_SAME (jp·jpadm 스키마·데이터·설정)"
 docker exec $RESTORE mysql --defaults-extra-file=/root/.jp-upgrade.cnf -N -e "SELECT COUNT(*) FROM mysql.user WHERE user LIKE 'qa\\_synth\\_%'; SHOW GRANTS FOR 'qa_synth_col'@'%';" | sed 's/^/  계정 복원: /'
 echo "== 끝 (합성 컨테이너·폴더 정리)"
