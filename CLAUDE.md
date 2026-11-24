@@ -15,6 +15,13 @@ J-planner is a Spring Boot application designed for MBTI 'J' personality types, 
 - Before implementing a feature, check `../j-planner-product/02-requirements.md` (requirement IDs, status) and `03-decisions.md` (confirmed decisions).
 - Do not add planning documents to this repository.
 
+## Roles (#380, D-114~116)
+
+- **Claude BE (this window)**: backend code (`J-planner-BE`), DB design and the API contract (`07-db-*`, `08-api-design.md`, `08-openapi.yaml`), BE tests.
+- **Codex PO**: planning and **QA** (plan review, real-run checks of BE work). Send review requests to PO with the commit where all tests pass.
+- Claude FE / ADMIN own their code; Codex DESIGN (opened when needed) owns the shared design rules (`../j-planner-product/31-designer-start.md`).
+- **Important decisions about the production DB, personal data or cost go to the owner** as a `to:대표님` issue — never decide or run them alone (e.g. real MySQL upgrade, production data deletion, retention periods).
+
 ## Messages between windows and to the owner (대표님) — GitHub issues (D-087, D-084)
 
 - The work board is **GitHub issues** in `awesomedesk/j-planner-product` (rules: `../j-planner-product/00-working-rules.md` section 0). The old dashboard artifact is a read-only record — do not write to it.
