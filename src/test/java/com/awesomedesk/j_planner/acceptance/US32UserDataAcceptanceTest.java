@@ -122,22 +122,16 @@ class US32UserDataAcceptanceTest extends AcceptanceTest {
     void otherUsersIdsAreNotFound() throws Exception {
         AdminData a = createAdminData();
 
-        List<MockHttpServletRequestBuilder> requests = List.of(
-            patch("/api/v1/categories/" + a.category()), delete("/api/v1/categories/" + a.category()),
-            put("/api/v1/categories/" + a.category() + "/position"),
-            get("/api/v1/schedules/" + a.schedule()), patch("/api/v1/schedules/" + a.schedule()),
-            delete("/api/v1/schedules/" + a.schedule()),
-            get("/api/v1/todos/" + a.todo()), patch("/api/v1/todos/" + a.todo()), delete("/api/v1/todos/" + a.todo()),
-            put("/api/v1/todos/" + a.todo() + "/position"),
-            get("/api/v1/ddays/" + a.dday()), patch("/api/v1/ddays/" + a.dday()), delete("/api/v1/ddays/" + a.dday()),
-            put("/api/v1/ddays/" + a.dday() + "/position"),
-            get("/api/v1/memos/" + a.memo()), patch("/api/v1/memos/" + a.memo()), delete("/api/v1/memos/" + a.memo()),
-            get("/api/v1/diaries/" + TODAY), delete("/api/v1/diaries/" + TODAY));
-        for (MockHttpServletRequestBuilder request : requests) {
-            String body = request.buildRequest(null).getMethod().equals("PUT") ? "{\"afterId\":null}" : "{\"title\":\"바꿈\",\"name\":\"바꿈\"}";
-            send(request, body, as(other))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        Map<String, Long> ids = Map.of("categories", a.category(), "schedules", a.schedule(), "todos", a.todo(),
+            "ddays", a.dday(), "memos", a.memo());
+        for (String endpoint : NOT_FOUND_ENDPOINTS) {
+            String[] methodAndPath = endpoint.split(" ");
+            String path = methodAndPath[1];
+            String url = path.replace("{id}", String.valueOf(ids.get(path.split("/")[1]))).replace("{date}", TODAY);
+            String body = methodAndPath[0].equals("PUT") ? "{\"afterId\":null}" : "{\"title\":\"바꿈\",\"name\":\"바꿈\"}";
+            ResultActions result = send(new Endpoint(HttpMethod.valueOf(methodAndPath[0]), path, url).request(), body, as(other));
+            assertThat(result.andReturn().getResponse().getStatus()).as(endpoint).isEqualTo(404);
+            result.andExpect(jsonPath("$.code").value("NOT_FOUND"));
         }
 
         // admin 데이터는 그대로
@@ -198,6 +192,16 @@ class US32UserDataAcceptanceTest extends AcceptanceTest {
         Set<String> tested = new TreeSet<>();
         DATA_ENDPOINTS.forEach(e -> tested.add(e.method() + " " + e.path()));
         assertThat(tested).isEqualTo(specDataOperations());
+    }
+
+    @Test
+    @DisplayName("AC2: 위 404 검사는 명세(08-openapi.yaml)의 경로 변수가 있는 데이터 API를 빠짐없이 덮는다 (제외: 아래 NOT_FOUND_EXCLUDED)")
+    void notFoundListCoversSpec() throws Exception {
+        Set<String> withPathVariable = new TreeSet<>();
+        specDataOperations().stream().filter(op -> op.contains("{")).forEach(withPathVariable::add);
+        assertThat(withPathVariable).as("제외 목록은 명세에 있는 API만").containsAll(NOT_FOUND_EXCLUDED.keySet());
+        withPathVariable.removeAll(NOT_FOUND_EXCLUDED.keySet());
+        assertThat(new TreeSet<>(NOT_FOUND_ENDPOINTS)).isEqualTo(withPathVariable);
     }
 
     // ------------------------------------------------------------------ AC3
@@ -291,6 +295,22 @@ class US32UserDataAcceptanceTest extends AcceptanceTest {
     }
 
     // ------------------------------------------------------------------ 준비
+
+    /** 남의 id·날짜로 부르면 404여야 하는 API (명세와 같은지 notFoundListCoversSpec이 확인). {id}는 첫 경로 조각별 admin 데이터, {date}는 TODAY */
+    private static final List<String> NOT_FOUND_ENDPOINTS = List.of(
+        "PATCH /categories/{id}", "DELETE /categories/{id}", "PUT /categories/{id}/position",
+        "GET /schedules/{id}", "PATCH /schedules/{id}", "DELETE /schedules/{id}",
+        "GET /todos/{id}", "PATCH /todos/{id}", "DELETE /todos/{id}", "PUT /todos/{id}/position",
+        "GET /ddays/{id}", "PATCH /ddays/{id}", "DELETE /ddays/{id}", "PUT /ddays/{id}/position",
+        "GET /memos/{id}", "PATCH /memos/{id}", "DELETE /memos/{id}",
+        "GET /diaries/{date}", "DELETE /diaries/{date}");
+
+    /**
+     * 경로 변수가 있지만 404 검사에서 빼는 데이터 API와 이유.
+     * /me/**(남의 기기 id 404는 US37MyAccountAcceptanceTest AC1)·/auth/**·/health는 specDataOperations가 이미 뺀다.
+     */
+    private static final Map<String, String> NOT_FOUND_EXCLUDED = Map.of(
+        "PUT /diaries/{date}", "날짜별 쓰기(upsert)라 남의 날짜가 없다 — 같은 날짜로 써도 자기 일기가 생긴다 (uniqueRulesArePerUser)");
 
     /** 로그인이 필요한 데이터 API 전부 (명세와 같은지 endpointListCoversSpec이 확인) */
     private static final List<Endpoint> DATA_ENDPOINTS = List.of(
