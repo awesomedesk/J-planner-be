@@ -15,6 +15,10 @@ spring:
   config:
     activate:
       on-profile: prd
+  # 정적 파일 제공 끔 — 이 서버의 정적 파일은 API 명세(/openapi.yaml) 하나뿐이라 운영에서는 404로 숨긴다 (US-44, PO #398 ①)
+  web:
+    resources:
+      add-mappings: false
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${JP_DB_URL}
