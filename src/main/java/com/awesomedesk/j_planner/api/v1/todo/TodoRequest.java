@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.todo;
 
+import com.awesomedesk.j_planner.common.api.MaxChars;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -7,7 +8,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -17,7 +17,7 @@ import java.time.LocalTime;
  */
 public record TodoRequest(
     @NotBlank(message = "제목을 입력하세요.")
-    @Size(max = 255, message = "제목은 255자까지입니다.")
+    @MaxChars(value = 255, message = "제목은 255자까지입니다.")
     String title,
 
     @NotNull(message = "종류를 고르세요.")

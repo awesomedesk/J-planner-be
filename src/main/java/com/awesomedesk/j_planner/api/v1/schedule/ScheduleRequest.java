@@ -1,5 +1,6 @@
 package com.awesomedesk.j_planner.api.v1.schedule;
 
+import com.awesomedesk.j_planner.common.api.MaxChars;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -14,7 +15,7 @@ import java.time.LocalDateTime;
  */
 public record ScheduleRequest(
     @NotBlank(message = "제목을 입력하세요.")
-    @Size(max = 255, message = "제목은 255자까지입니다.")
+    @MaxChars(value = 255, message = "제목은 255자까지입니다.")
     String title,
 
     @NotNull(message = "종일 여부를 보내세요.")
