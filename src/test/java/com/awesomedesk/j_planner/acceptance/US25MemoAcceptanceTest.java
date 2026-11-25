@@ -79,6 +79,29 @@ class US25MemoAcceptanceTest extends AcceptanceTest {
     }
 
     @Test
+    @DisplayName("제목은 255자까지 — 255자는 저장, 256자부터 400 VALIDATION_FAILED(title), 추가·수정 모두 (08 8절, PO #398)")
+    void titleUpTo255() throws Exception {
+        String max = "가".repeat(255);
+        postJson(URL, "{\"title\":\"" + max + "\"}").andExpect(status().isCreated()).andExpect(jsonPath("$.title").value(max));
+        String emoji = "😀".repeat(255);  // 글자 수는 255 (JSON Schema maxLength = 유니코드 글자 수)
+        postJson(URL, "{\"title\":\"" + emoji + "\"}").andExpect(status().isCreated()).andExpect(jsonPath("$.title").value(emoji));
+
+        postJson(URL, "{\"title\":\"" + max + "가\",\"content\":\"내용\"}").andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[*].field", contains("title")));
+        postJson(URL, "{\"title\":\"" + emoji + "😀\"}").andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors[*].field", contains("title")));
+
+        long id = createMemo("장보기", "우유");
+        patchJson(URL + "/" + id, "{\"title\":\"" + max + "\"}").andExpect(status().isOk()).andExpect(jsonPath("$.title").value(max));
+        patchJson(URL + "/" + id, "{\"title\":\"" + max + "가\"}").andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[*].field", contains("title")));
+        getJson(URL + "/" + id).andExpect(jsonPath("$.title").value(max));
+        getJson(URL).andExpect(jsonPath("$.length()").value(3));
+    }
+
+    @Test
     @DisplayName("삭제하면 목록에서 사라진다 (MEMO-03)")
     void delete() throws Exception {
         long id = createMemo("A", "a");
