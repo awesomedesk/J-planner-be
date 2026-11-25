@@ -142,7 +142,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 if (statusCode.is5xxServerError()) {
                     log.error("MVC error: {}", ex.getClass().getSimpleName(), ex);
                 } else {
-                    log.debug("MVC error: {} - {}", ex.getClass().getSimpleName(), ex.getMessage());
+                    // 본문을 읽다 난 오류(JSON 형식 등)의 메시지에는 본문 조각이 섞인다 — 일기·메모 내용이 로그에 남지 않게 뺀다 (US-44)
+                    log.debug("MVC error: {} - {}", ex.getClass().getSimpleName(),
+                        ex instanceof HttpMessageNotReadableException ? "(본문 내용 생략)" : ex.getMessage());
                 }
                 problem.setDetail(detailFor(ex, code));
                 problem.setProperty(CODE, code.name());

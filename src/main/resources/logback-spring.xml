@@ -34,6 +34,10 @@
     <appender-ref ref="FILE" />
   </logger>
 
+  <!-- Hibernate가 저장(flush)할 때 엔티티를 통째로 찍는 DEBUG 출력에는 일기·메모 원문이 들어간다 — 모든 프로필에서 끈다 (US-44).
+       SQL(org.hibernate.SQL)·바인딩 값(org.hibernate.orm.jdbc.bind, 암호문)은 따로 정한다 -->
+  <logger name="org.hibernate.orm.core" level="info"/>
+
   <!-- spring profile별 로그 설정 -->
   <springProfile name="local">
     <!-- 가짜 메일(LoggingAuthMailer)은 logs/fake-mail.log에도 남긴다 — 서버 콘솔을 못 보는 창(PO 검수)이 인증 링크를 읽을 수 있게 (US-33) -->
