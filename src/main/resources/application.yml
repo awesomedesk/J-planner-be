@@ -72,6 +72,7 @@ app:
   retention:
     deleted-content:
       enabled: true
+      dry-run: false   # true = 검출만 (지우지 않고 대상 개수를 로그·지표로). tst는 true
       days: 30
   # 구글 로그인 (US-36, OpenID Connect). 클라이언트 ID·비밀값은 .env / 환경 변수로만 (저장소에 쓰지 않음).
   # 로컬에서 비워 두면 구글 로그인이 꺼진다 (구글 버튼 → /login?error=GOOGLE_FAILED). tst·prd는 필수.

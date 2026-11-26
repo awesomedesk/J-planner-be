@@ -35,6 +35,10 @@ management:
   server:
     address: ${JP_MANAGEMENT_ADDRESS}
 app:
+  # 지운 작성 데이터 30일 뒤 삭제는 테스트 서버에서 하지 않고 검출만 — 대상 개수를 로그·지표로 (대표님 2026-11-27, D-125)
+  retention:
+    deleted-content:
+      dry-run: true
   network:
     trusted-proxies: ${JP_TRUSTED_PROXIES}
   ratelimit:

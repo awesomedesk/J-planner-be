@@ -116,6 +116,7 @@ class DeletedContentRetentionAcceptanceTest extends AcceptanceTest {
         Map<String, Long> old = deletedSet(t0.minusDays(31));
         Map<String, Long> recent = deletedSet(t0.minusDays(3));
         DeletedContentPurger dryRun = new DeletedContentPurger(jdbc, clock, meters, transactionManager, true, true, 30);
+        double before = counter("memos");
         Logger logger = (Logger) LoggerFactory.getLogger(DeletedContentPurger.class);
         ListAppender<ILoggingEvent> logs = new ListAppender<>();
         logs.start();
@@ -133,7 +134,7 @@ class DeletedContentRetentionAcceptanceTest extends AcceptanceTest {
             Map.entry("diaries", 1), Map.entry("memos", 1), Map.entry("categories", 1));
         assertThat(logs.list).extracting(ILoggingEvent::getFormattedMessage)
             .anySatisfy(line -> assertThat(line).contains("검출만").contains("memos=1").contains("categories=1"));
-        assertThat(counter("memos")).as("지운 수 지표는 늘지 않음").isZero();
+        assertThat(counter("memos") - before).as("지운 수 지표는 늘지 않음").isZero();
     }
 
     @Test

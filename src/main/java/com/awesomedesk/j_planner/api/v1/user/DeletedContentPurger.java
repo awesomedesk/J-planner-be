@@ -30,6 +30,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>한 번에 {@code batch}행씩 표마다 최대 {@code maxBatches}번 — 남으면 다음 회차. 한 묶음은 한 트랜잭션</li>
  *   <li>로그는 표별 지운 개수만 (회원 번호·내용 없음). 지표는 {@link com.awesomedesk.j_planner.api.v1.auth.AuthTokenCleaner}와 같은 이름 ({@code table}·{@code job=deleted-content})</li>
  *   <li>{@code app.retention.deleted-content.enabled=false}면 아무것도 안 함 — prd는 기존 운영 행 정리 승인 뒤 환경 변수로 켠다 (D-125)</li>
+ *   <li>{@code app.retention.deleted-content.dry-run=true}면 <b>검출만</b> — 지울 대상 개수를 로그·지표로만 내고 지우지 않는다.
+ *       테스트 서버(tst)는 지우지 않는 정책 (대표님 2026-11-27)</li>
  * </ul>
  */
 @Slf4j
@@ -50,6 +52,8 @@ public class DeletedContentPurger {
     private final Clock clock;
     private final TransactionTemplate transaction;
     private final boolean enabled;
+    private final boolean dryRun;
+    private volatile Map<String, Integer> lastCandidates = Map.of();
     private final int days;
     private final MeterRegistry registry;
     private final Counter failures;
@@ -59,6 +63,7 @@ public class DeletedContentPurger {
 
     public DeletedContentPurger(JdbcTemplate jdbc, Clock clock, MeterRegistry registry, PlatformTransactionManager transactionManager,
                                 @Value("${app.retention.deleted-content.enabled:true}") boolean enabled,
+                                @Value("${app.retention.deleted-content.dry-run:false}") boolean dryRun,
                                 @Value("${app.retention.deleted-content.days:30}") int days) {
         if (days < 1) {
             throw new IllegalArgumentException("app.retention.deleted-content.days는 1 이상: " + days);
@@ -67,6 +72,7 @@ public class DeletedContentPurger {
         this.clock = clock;
         this.transaction = new TransactionTemplate(transactionManager);
         this.enabled = enabled;
+        this.dryRun = dryRun;
         this.days = days;
         this.registry = registry;
         this.failures = registry.counter("jp.retention.failures", "job", JOB);
@@ -79,6 +85,11 @@ public class DeletedContentPurger {
 
     public int retentionDays() {
         return days;
+    }
+
+    /** 마지막 검출만 회차에서 센 표별 대상 수 (지우는 모드에서는 비어 있음) */
+    public Map<String, Integer> lastCandidates() {
+        return lastCandidates;
     }
 
     /** 매일 04:40 KST (휴면 처리 04:10 뒤) */
@@ -94,6 +105,9 @@ public class DeletedContentPurger {
         }
         LocalDateTime t0 = LocalDateTime.now(clock).withNano(0);
         LocalDateTime cutoff = t0.minusDays(days);
+        if (dryRun) {
+            return detectOnly(cutoff);
+        }
         Map<String, Integer> counts = new LinkedHashMap<>();
         boolean failed = false;
         for (Map.Entry<String, String> entry : TABLES.entrySet()) {
@@ -124,8 +138,38 @@ public class DeletedContentPurger {
         return total;
     }
 
+    /** 검출만: 지울 대상 개수만 세어 로그·지표로. @return 0 (지운 것 없음) */
+    private int detectOnly(LocalDateTime cutoff) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        boolean failed = false;
+        for (Map.Entry<String, String> entry : TABLES.entrySet()) {
+            String table = entry.getKey();
+            try {
+                Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " t WHERE " + condition(table), Integer.class, cutoff);
+                counts.put(table, n == null ? 0 : n);
+                updateOverdue(table, cutoff);
+            } catch (RuntimeException e) {
+                failed = true;
+                failures.increment();
+                log.error("지운 작성 데이터 검출 실패 — 다음 회차에 다시: {}", table, e);
+            }
+        }
+        lastCandidates = Collections.unmodifiableMap(counts);
+        if (!failed) {
+            lastSuccess.set(clock.instant().getEpochSecond());
+        }
+        StringJoiner line = new StringJoiner(", ");
+        counts.forEach((table, n) -> line.add(table + "=" + n));
+        log.info("지운 작성 데이터 검출만 — 지우지 않음 (보관 {}일 지난 대상): {}", days, line);
+        return 0;
+    }
+
+    private static String condition(String table) {
+        return "t.deleted = 'Y' AND t.deleted_at <= ?" + ("categories".equals(table) ? CATEGORY_UNREFERENCED : "");
+    }
+
     private int purgeTable(String table, String idColumn, LocalDateTime cutoff, int batch, int maxBatches) {
-        String condition = "t.deleted = 'Y' AND t.deleted_at <= ?" + ("categories".equals(table) ? CATEGORY_UNREFERENCED : "");
+        String condition = condition(table);
         int total = 0;
         for (int i = 0; i < maxBatches; i++) {
             List<Long> ids = jdbc.queryForList("SELECT t." + idColumn + " FROM " + table + " t WHERE " + condition
