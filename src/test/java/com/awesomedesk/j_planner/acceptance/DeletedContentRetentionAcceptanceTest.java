@@ -37,6 +37,7 @@ import org.springframework.scheduling.annotation.Scheduled;
  *   <li>로그는 표별 지운 개수만 (회원 번호·내용 없음)</li>
  * </ul>
  * 운영 DB의 기존 지운 행 정리는 별도 승인이라(D-125) prd는 환경 변수로 켜기 전까지 꺼져 있고, local도 꺼 둔다 (대표님 로컬 데이터).
+ * 테스트 서버(tst)는 지우지 않고 검출만 한다 — 대상 개수를 로그·지표로만 (대표님 2026-11-27).
  */
 @DisplayName("D-125 지운 작성 데이터 30일 뒤 완전 삭제")
 class DeletedContentRetentionAcceptanceTest extends AcceptanceTest {
@@ -94,15 +95,45 @@ class DeletedContentRetentionAcceptanceTest extends AcceptanceTest {
         assertThat(profileValue("profile/application-prd.yml", "prd", "app.retention.deleted-content.enabled"))
             .isEqualTo("${JP_DELETED_CONTENT_PURGE_ENABLED:false}");
         assertThat(profileValue("profile/application-local.yml", "local", "app.retention.deleted-content.enabled")).isEqualTo(false);
+        assertThat(profileValue("application.yml", null, "app.retention.deleted-content.dry-run")).isEqualTo(false);
+        assertThat(profileValue("profile/application-tst.yml", "tst", "app.retention.deleted-content.dry-run")).isEqualTo(true);
+        assertThat(profileValue("profile/application-tst.yml", "tst", "app.retention.deleted-content.enabled")).isNull();
     }
 
     @Test
     @DisplayName("꺼져 있으면 아무것도 지우지 않는다")
     void disabledDoesNothing() throws Exception {
         deletedSet(LocalDateTime.now(clock).minusDays(100));
-        DeletedContentPurger off = new DeletedContentPurger(jdbc, clock, meters, transactionManager, false, 30);
+        DeletedContentPurger off = new DeletedContentPurger(jdbc, clock, meters, transactionManager, false, false, 30);
         assertThat(off.purge()).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM memos WHERE deleted = 'Y'", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("검출만(tst): 30일 지난 대상 개수를 로그·지표로 내고 아무것도 지우지 않는다 — 참조가 남은 카테고리는 대상에서 빠진다")
+    void dryRunOnlyCounts() throws Exception {
+        LocalDateTime t0 = LocalDateTime.now(clock).withNano(0);
+        Map<String, Long> old = deletedSet(t0.minusDays(31));
+        Map<String, Long> recent = deletedSet(t0.minusDays(3));
+        DeletedContentPurger dryRun = new DeletedContentPurger(jdbc, clock, meters, transactionManager, true, true, 30);
+        Logger logger = (Logger) LoggerFactory.getLogger(DeletedContentPurger.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        logger.addAppender(logs);
+        try {
+            assertThat(dryRun.purge()).as("지운 수").isZero();
+        } finally {
+            logger.detachAppender(logs);
+        }
+        for (Map<String, Long> kept : List.of(old, recent)) {
+            kept.forEach((table, id) -> assertThat(exists(table, id)).as(table + " " + id).isTrue());
+        }
+        assertThat(dryRun.lastCandidates()).containsExactly(
+            Map.entry("calendars", 1), Map.entry("todos", 1), Map.entry("ddays", 1),
+            Map.entry("diaries", 1), Map.entry("memos", 1), Map.entry("categories", 1));
+        assertThat(logs.list).extracting(ILoggingEvent::getFormattedMessage)
+            .anySatisfy(line -> assertThat(line).contains("검출만").contains("memos=1").contains("categories=1"));
+        assertThat(counter("memos")).as("지운 수 지표는 늘지 않음").isZero();
     }
 
     @Test
