@@ -51,6 +51,10 @@ app:
     key: ${JP_RATELIMIT_KEY}
   crypto:
     data-key: ${JP_DATA_KEY}
+  # 지운 데이터 자동 완전 삭제 — 운영 DB의 기존 지운 행 정리 승인(D-125) 뒤 JP_DELETED_CONTENT_PURGE_ENABLED=true로 켠다
+  retention:
+    deleted-content:
+      enabled: ${JP_DELETED_CONTENT_PURGE_ENABLED:false}
   web:
     base-url: ${JP_WEB_BASE_URL}
   # 구글 로그인 (US-36). 기본값을 두지 않아 빠뜨리면 켜지지 않는다

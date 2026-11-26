@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.PropertySource;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -235,7 +235,7 @@ class DeletedContentRetentionAcceptanceTest extends AcceptanceTest {
     }
 
     private static Object profileValue(String file, String profile, String key) throws Exception {
-        for (PropertySource<?> source : new YamlPropertySourceLoader().load(file, new ClassPathResource(file))) {
+        for (PropertySource<?> source : new YamlPropertySourceLoader().load(file, new FileSystemResource("src/main/resources/" + file))) {
             Object activeOn = source.getProperty("spring.config.activate.on-profile");
             if ((profile == null ? activeOn == null : profile.equals(activeOn)) && source.containsProperty(key)) {
                 return source.getProperty(key);
